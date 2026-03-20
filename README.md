@@ -223,10 +223,15 @@ The workflow signs into Azure with `azure/login`, invokes the local action with 
 
 ## Local script testing
 
-For local testing outside GitHub Actions, the included script still supports a passkey JSON file:
+For local testing outside GitHub Actions, create your own passkey JSON file and keep it out of source control. The repository includes sanitized examples for the expected shape:
+
+- [passkey.private-key.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/passkey.private-key.example.json)
+- [passkey.keyvault.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/passkey.keyvault.example.json)
+
+Example:
 
 ```powershell
-./PasskeyLogin.ps1 -KeyFilePath ./secadmin.passkey -PassThru
+./PasskeyLogin.ps1 -KeyFilePath ./my-passkey.json -PassThru
 ```
 
 The script no longer writes token previews to the console. It only includes the authenticated cookie value in its returned object when `-IncludeAuthenticationCookie` is specified.
