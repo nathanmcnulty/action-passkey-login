@@ -24,11 +24,18 @@
 .PARAMETER Branch
     Branch name allowed to request tokens through the federated credential.
 
+.PARAMETER KeyVaultName
+    Optional Key Vault name. When provided, the script resolves the vault and grants
+    the service principal the Key Vault Crypto User role on that vault.
+
 .EXAMPLE
     .\Setup-GitHubActionServicePrincipal.ps1
 
 .EXAMPLE
     .\Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo 'contoso/action-passkey-login' -Branch 'main'
+
+.EXAMPLE
+    .\Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName 'kv-passkeys-prod'
 #>
 
 [CmdletBinding()]
@@ -40,7 +47,10 @@ param(
     [string]$GitHubRepo = 'nathanmcnulty/action-passkey-login',
 
     [Parameter()]
-    [string]$Branch = 'main'
+    [string]$Branch = 'main',
+
+    [Parameter()]
+    [string]$KeyVaultName
 )
 
 $ErrorActionPreference = 'Stop'
@@ -132,6 +142,39 @@ if (-not $existingCredential) {
     Write-Host "Reusing existing federated credential." -ForegroundColor Yellow
 }
 
+$keyVault = $null
+if ($KeyVaultName) {
+    Write-Host "Checking Key Vault '$KeyVaultName'..." -ForegroundColor Cyan
+    $keyVault = Invoke-AzCliJson -Arguments @('keyvault', 'show', '--name', $KeyVaultName, '--output', 'json') -AllowFailure
+
+    if (-not $keyVault) {
+        throw "Key Vault '$KeyVaultName' was not found in the current Azure context."
+    }
+
+    $existingAssignment = Invoke-AzCliJson -Arguments @(
+        'role', 'assignment', 'list',
+        '--assignee-object-id', $sp.id,
+        '--scope', $keyVault.id,
+        '--role', 'Key Vault Crypto User',
+        '--output', 'json'
+    )
+
+    if (-not $existingAssignment -or @($existingAssignment).Count -eq 0) {
+        Invoke-AzCliJson -Arguments @(
+            'role', 'assignment', 'create',
+            '--assignee-object-id', $sp.id,
+            '--assignee-principal-type', 'ServicePrincipal',
+            '--role', 'Key Vault Crypto User',
+            '--scope', $keyVault.id,
+            '--output', 'json'
+        ) | Out-Null
+
+        Write-Host "Granted 'Key Vault Crypto User' on '$($keyVault.name)'." -ForegroundColor Green
+    } else {
+        Write-Host "Reusing existing 'Key Vault Crypto User' assignment on '$($keyVault.name)'." -ForegroundColor Yellow
+    }
+}
+
 Write-Host "`nSetup complete." -ForegroundColor Green
 Write-Host ""
 Write-Host "GitHub repository: https://github.com/$GitHubRepo" -ForegroundColor Cyan
@@ -144,5 +187,11 @@ Write-Host "Recommended GitHub variables:" -ForegroundColor Cyan
 Write-Host "  AZURE_CLIENT_ID  = $($app.appId)" -ForegroundColor White
 Write-Host "  AZURE_TENANT_ID  = $tenantId" -ForegroundColor White
 Write-Host ""
-Write-Host "Next step for Key Vault-backed signing:" -ForegroundColor Cyan
-Write-Host "  Grant this service principal 'Key Vault Crypto User' on the target Key Vault or key scope." -ForegroundColor White
+if ($keyVault) {
+    Write-Host "Key Vault role assignment:" -ForegroundColor Cyan
+    Write-Host "  Vault name: $($keyVault.name)" -ForegroundColor White
+    Write-Host "  Role: Key Vault Crypto User" -ForegroundColor White
+} else {
+    Write-Host "Next step for Key Vault-backed signing:" -ForegroundColor Cyan
+    Write-Host "  Re-run with -KeyVaultName <vault-name> or grant this service principal 'Key Vault Crypto User' on the target Key Vault or key scope." -ForegroundColor White
+}

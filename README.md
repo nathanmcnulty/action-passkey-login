@@ -221,6 +221,7 @@ The repository includes [Setup-GitHubActionServicePrincipal.ps1](c:/Users/nathan
 - creates or reuses an Entra app registration
 - creates or reuses its service principal
 - creates one GitHub Actions federated credential for a branch
+- optionally grants `Key Vault Crypto User` on a specified Key Vault
 
 It does not assign API permissions or create secrets. That keeps the setup small and aligned with this action's use of `azure/login` plus Key Vault signing.
 
@@ -230,7 +231,13 @@ Example:
 ./Setup-GitHubActionServicePrincipal.ps1
 ```
 
-After running it, store the emitted values as GitHub variables and grant the service principal `Key Vault Crypto User` on the target Key Vault or key.
+To create the OIDC objects and grant the Key Vault role in one step:
+
+```powershell
+./Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName '<your-key-vault-name>'
+```
+
+After running it, store the emitted values as GitHub variables. If you did not pass `-KeyVaultName`, grant the service principal `Key Vault Crypto User` on the target Key Vault or key separately.
 
 ## Publishing
 
