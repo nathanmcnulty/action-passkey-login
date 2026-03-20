@@ -117,10 +117,26 @@ if (-not $sp) {
 }
 
 $credentialName = "github-$($Branch.Replace('/', '-'))"
-$subject = "repo:$GitHubRepo:ref:refs/heads/$Branch"
+$subject = "repo:${GitHubRepo}:ref:refs/heads/${Branch}"
 
 $existingCredentials = Invoke-AzCliJson -Arguments @('ad', 'app', 'federated-credential', 'list', '--id', $app.id, '--output', 'json')
-$existingCredential = @($existingCredentials | Where-Object { $_.name -eq $credentialName -or $_.subject -eq $subject }) | Select-Object -First 1
+$existingCredential = @($existingCredentials | Where-Object { $_.name -eq $credentialName }) | Select-Object -First 1
+
+if ($existingCredential -and $existingCredential.subject -ne $subject) {
+    Invoke-AzCliJson -Arguments @(
+        'ad', 'app', 'federated-credential', 'delete',
+        '--id', $app.id,
+        '--federated-credential-id', $existingCredential.id,
+        '--output', 'json'
+    ) -AllowFailure | Out-Null
+
+    Write-Host "Removed federated credential with mismatched subject." -ForegroundColor Yellow
+    $existingCredential = $null
+}
+
+if (-not $existingCredential) {
+    $existingCredential = @($existingCredentials | Where-Object { $_.subject -eq $subject }) | Select-Object -First 1
+}
 
 if (-not $existingCredential) {
     $credential = @{
