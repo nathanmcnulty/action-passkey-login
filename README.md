@@ -19,6 +19,18 @@ Less preferred path:
 2. Do not commit passkey JSON or private keys to the repository.
 3. Expect the action to warn when it falls back to a local private key.
 
+## Configuration rule
+
+The passkey values must come from the same registration.
+
+- `credential-id`
+- `user-handle`
+- `user-principal-name`
+- `key-vault-name`
+- `key-vault-key-name`
+
+Do not mix the `credential-id` from one passkey with the Key Vault key from another. That mismatch is easy to create during testing and is hard to spot from masked workflow logs.
+
 ## What should be stored where
 
 Suggested GitHub Environment storage:
@@ -27,11 +39,11 @@ Suggested GitHub Environment storage:
 | --- | --- | --- |
 | `credential-id` | Secret | Authenticator-specific material. |
 | `user-handle` | Secret | Authenticator-specific material. |
-| `user-principal-name` | Variable or secret | Either works, but the included private-key test workflow reads it from a secret for simplicity. |
-| `key-vault-name` | Variable | Configuration only. |
-| `key-vault-key-name` | Variable | Configuration only. |
-| `key-vault-tenant-id` | Variable | Configuration only. |
-| Azure OIDC client ID | Variable | Used by `azure/login`. |
+| `user-principal-name` | Secret or variable | Use one approach consistently within a workflow. |
+| `key-vault-name` | Secret or variable | Configuration only. The included workflows use secrets for simplicity. |
+| `key-vault-key-name` | Secret or variable | Configuration only. The included workflows use secrets for simplicity. |
+| `key-vault-tenant-id` | Secret or variable | Configuration only. |
+| Azure OIDC client ID | Secret or variable | Used by `azure/login`. |
 | `private-key` | Secret only if you must use local signing | Common for testing, but less secure than Key Vault. |
 
 ## Inputs
@@ -95,10 +107,10 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Azure login via OIDC
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.KEY_VAULT_TENANT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
       - name: Passkey login
@@ -107,10 +119,10 @@ jobs:
         with:
           credential-id: ${{ secrets.PASSKEY_CREDENTIAL_ID }}
           user-handle: ${{ secrets.PASSKEY_USER_HANDLE }}
-          user-principal-name: ${{ vars.PASSKEY_USER_PRINCIPAL_NAME }}
-          key-vault-name: ${{ vars.PASSKEY_KEY_VAULT_NAME }}
-          key-vault-key-name: ${{ vars.PASSKEY_KEY_VAULT_KEY_NAME }}
-          key-vault-tenant-id: ${{ vars.KEY_VAULT_TENANT_ID }}
+          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME }}
+          key-vault-name: ${{ secrets.PASSKEY_KEY_VAULT_NAME }}
+          key-vault-key-name: ${{ secrets.PASSKEY_KEY_VAULT_KEY_NAME }}
+          key-vault-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Use login result
         shell: pwsh
@@ -143,9 +155,9 @@ Example using the cookie with a downstream PowerShell flow like `Connect-XdrByEs
         with:
           credential-id: ${{ secrets.PASSKEY_CREDENTIAL_ID }}
           user-handle: ${{ secrets.PASSKEY_USER_HANDLE }}
-          user-principal-name: ${{ vars.PASSKEY_USER_PRINCIPAL_NAME }}
-          key-vault-name: ${{ vars.PASSKEY_KEY_VAULT_NAME }}
-          key-vault-key-name: ${{ vars.PASSKEY_KEY_VAULT_KEY_NAME }}
+          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME }}
+          key-vault-name: ${{ secrets.PASSKEY_KEY_VAULT_NAME }}
+          key-vault-key-name: ${{ secrets.PASSKEY_KEY_VAULT_KEY_NAME }}
 
       - name: Downstream use of cookie
         shell: pwsh
@@ -249,7 +261,7 @@ To create the OIDC objects and grant the Key Vault role in one step:
 ./Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName '<your-key-vault-name>'
 ```
 
-After running it, store the emitted values as GitHub variables. If you did not pass `-KeyVaultName`, grant the service principal `Key Vault Crypto User` on the target Key Vault or key separately.
+After running it, store the emitted values as GitHub secrets or variables to match your workflow style. If you did not pass `-KeyVaultName`, grant the service principal `Key Vault Crypto User` on the target Key Vault or key separately.
 
 ## Publishing
 

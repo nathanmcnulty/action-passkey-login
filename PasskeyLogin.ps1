@@ -436,6 +436,24 @@ function ConvertTo-PlainTextValue {
     throw "PrivateKey must be either a string or SecureString. Received: $($Value.GetType().FullName)"
 }
 
+function Normalize-OptionalString {
+    param(
+        [AllowNull()]
+        [string]$Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    $trimmedValue = $Value.Trim()
+    if ($trimmedValue.Length -eq 0) {
+        return $null
+    }
+
+    return $trimmedValue
+}
+
 function Resolve-KeyVaultReference {
     param(
         [string]$VaultName,
@@ -443,9 +461,9 @@ function Resolve-KeyVaultReference {
         [string]$KeyId
     )
 
-    $resolvedVaultName = $VaultName
-    $resolvedKeyName = $KeyName
-    $resolvedKeyId = $KeyId
+    $resolvedVaultName = Normalize-OptionalString $VaultName
+    $resolvedKeyName = Normalize-OptionalString $KeyName
+    $resolvedKeyId = Normalize-OptionalString $KeyId
 
     $referenceValue = if ($resolvedKeyId) { $resolvedKeyId } elseif ($resolvedKeyName) { $resolvedKeyName } else { $null }
     if ($referenceValue -and $referenceValue -match '^https://([^.]+)\.vault\.azure\.net/keys/([^/]+)(?:/([^/?]+))?$') {
@@ -713,12 +731,30 @@ if ($CredentialFromPipeline) {
     }
 }
 
+$KeyFilePath = Normalize-OptionalString $KeyFilePath
+$UserPrincipalName = Normalize-OptionalString $UserPrincipalName
+$UserHandle = Normalize-OptionalString $UserHandle
+$KeyVaultName = Normalize-OptionalString $KeyVaultName
+$KeyVaultKeyName = Normalize-OptionalString $KeyVaultKeyName
+$KeyVaultAccessToken = Normalize-OptionalString $KeyVaultAccessToken
+$KeyVaultClientId = Normalize-OptionalString $KeyVaultClientId
+$KeyVaultClientSecret = Normalize-OptionalString $KeyVaultClientSecret
+$KeyVaultTenantId = Normalize-OptionalString $KeyVaultTenantId
+$Proxy = Normalize-OptionalString $Proxy
+$AuthUrl = Normalize-OptionalString $AuthUrl
+
+$hasManualKeyVaultReference = (-not [string]::IsNullOrWhiteSpace($KeyVaultName)) -or (-not [string]::IsNullOrWhiteSpace($KeyVaultKeyName))
+$hasCompleteManualKeyVaultReference = (-not [string]::IsNullOrWhiteSpace($KeyVaultName)) -and (-not [string]::IsNullOrWhiteSpace($KeyVaultKeyName))
+
 # Validate required parameters
 if (-not $KeyFilePath -and (-not $UserPrincipalName -or -not $UserHandle -or -not $CredentialIdentifier)) {
     throw "Either provide -KeyFilePath or specify manual parameters (-UserPrincipalName, -UserHandle, -CredentialId, and either -PrivateKey or -KeyVaultName). Or pipe from New-KeyVaultPasskey.ps1 with -PassThru."
 }
-if (-not $KeyFilePath -and -not $PrivateKey -and -not $KeyVaultName) {
-    throw "Either -PrivateKey or -KeyVaultName must be provided for manual authentication."
+if (-not $KeyFilePath -and $hasManualKeyVaultReference -and -not $hasCompleteManualKeyVaultReference) {
+    throw "Provide both -KeyVaultName and -KeyVaultKeyName for manual Key Vault authentication."
+}
+if (-not $KeyFilePath -and -not $PrivateKey -and -not $hasCompleteManualKeyVaultReference) {
+    throw "Either -PrivateKey or both -KeyVaultName and -KeyVaultKeyName must be provided for manual authentication."
 }
 
 # Load key data if file provided
@@ -763,14 +799,16 @@ $origin = $keyData.url ?? "https://$($rpId)"
 $origin = [uri]"$origin" | Select-Object -ExpandProperty Host
 $origin = "https://$($origin)"
 
-$userHandle = $keyData.userHandle ?? $UserHandle
+$targetUser = Normalize-OptionalString ([string]$targetUser)
+$userHandle = Normalize-OptionalString ([string]($keyData.userHandle ?? $UserHandle))
+
 if (-not $userHandle) {
     Write-Error "UserHandle not found in JSON file or command line arguments"
     throw "Missing required parameter: UserHandle"
 }
 $userHandle = Confirm-Base64Url $userHandle
 
-$credentialIdInput = $keyData.credentialId ?? $CredentialIdentifier
+$credentialIdInput = Normalize-OptionalString ([string]($keyData.credentialId ?? $CredentialIdentifier))
 if (-not $credentialIdInput) {
     Write-Error "CredentialId not found in JSON file or command line arguments"
     throw "Missing required parameter: CredentialId"
@@ -797,9 +835,9 @@ $resolvedKvKeyName = $KeyVaultKeyName
 $resolvedKvKeyId = $null
 
 if ($keyData.keyVault) {
-    if (-not $resolvedKvName) { $resolvedKvName = $keyData.keyVault.vaultName }
-    if (-not $resolvedKvKeyName) { $resolvedKvKeyName = $keyData.keyVault.keyName }
-    if ($keyData.keyVault.keyId) { $resolvedKvKeyId = $keyData.keyVault.keyId }
+    if (-not $resolvedKvName) { $resolvedKvName = Normalize-OptionalString ([string]$keyData.keyVault.vaultName) }
+    if (-not $resolvedKvKeyName) { $resolvedKvKeyName = Normalize-OptionalString ([string]$keyData.keyVault.keyName) }
+    if ($keyData.keyVault.keyId) { $resolvedKvKeyId = Normalize-OptionalString ([string]$keyData.keyVault.keyId) }
 
     $resolvedKeyVaultReference = Resolve-KeyVaultReference -VaultName $resolvedKvName -KeyName $resolvedKvKeyName -KeyId $resolvedKvKeyId
     
@@ -809,8 +847,8 @@ if ($keyData.keyVault) {
         keyName   = $resolvedKeyVaultReference.keyName
         keyId     = $resolvedKeyVaultReference.keyId
     }
-} elseif ($KeyVaultName -and $KeyVaultKeyName) {
-    $resolvedKeyVaultReference = Resolve-KeyVaultReference -VaultName $KeyVaultName -KeyName $KeyVaultKeyName -KeyId $null
+} elseif ($resolvedKvName -and $resolvedKvKeyName) {
+    $resolvedKeyVaultReference = Resolve-KeyVaultReference -VaultName $resolvedKvName -KeyName $resolvedKvKeyName -KeyId $null
     # Manual Key Vault mode (no JSON keyVault object, but parameters provided)
     $kvInfo = @{
         vaultName = $resolvedKeyVaultReference.vaultName
@@ -820,6 +858,10 @@ if ($keyData.keyVault) {
 }
 
 if ($kvInfo) {
+    if ($PrivateKey) {
+        Write-Warning "Both Key Vault and private-key inputs were provided. Using Azure Key Vault and ignoring private-key."
+    }
+
     Write-Host "`n=== Key Vault Configuration ===" -ForegroundColor Cyan
     Write-Host "  Vault Name:      $($kvInfo.vaultName)" -ForegroundColor White
     Write-Host "  Key Name:        $($kvInfo.keyName)" -ForegroundColor White

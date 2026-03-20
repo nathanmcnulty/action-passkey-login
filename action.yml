@@ -111,6 +111,21 @@ runs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value $delimiter
         }
 
+        function Add-OptionalParameter {
+          param(
+            [Parameter(Mandatory)]
+            [hashtable]$Parameters,
+            [Parameter(Mandatory)]
+            [string]$Name,
+            [AllowNull()]
+            [string]$Value
+          )
+
+          if (-not [string]::IsNullOrWhiteSpace($Value)) {
+            $Parameters[$Name] = $Value
+          }
+        }
+
         foreach ($sensitiveValue in @(
           $env:CREDENTIAL_ID,
           $env:USER_HANDLE,
@@ -123,33 +138,6 @@ runs:
           }
         }
 
-        $useLocalPrivateKey = -not [string]::IsNullOrWhiteSpace($env:PRIVATE_KEY)
-        $hasAnyKeyVaultConfig = @(
-          $env:KEY_VAULT_NAME,
-          $env:KEY_VAULT_KEY_NAME,
-          $env:KEY_VAULT_ACCESS_TOKEN,
-          $env:KEY_VAULT_CLIENT_ID,
-          $env:KEY_VAULT_CLIENT_SECRET,
-          $env:KEY_VAULT_TENANT_ID
-        ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        $hasCompleteKeyVaultConfig = (-not [string]::IsNullOrWhiteSpace($env:KEY_VAULT_NAME)) -and (-not [string]::IsNullOrWhiteSpace($env:KEY_VAULT_KEY_NAME))
-
-        if (-not $useLocalPrivateKey -and -not $hasCompleteKeyVaultConfig) {
-          throw 'A signing method is required. Prefer key-vault-name plus key-vault-key-name, or supply private-key for local testing only.'
-        }
-
-        if ($hasAnyKeyVaultConfig -and -not $hasCompleteKeyVaultConfig) {
-          throw 'Incomplete Key Vault configuration detected. Provide both key-vault-name and key-vault-key-name, or remove the Key Vault inputs and use private-key only.'
-        }
-
-        if ($hasCompleteKeyVaultConfig -and $useLocalPrivateKey) {
-          Write-Warning 'Key Vault inputs were provided, so the action will use Azure Key Vault and ignore private-key.'
-        }
-
-        if (-not $hasCompleteKeyVaultConfig) {
-          Write-Warning 'Using private-key fallback. This is less secure than Azure Key Vault-backed signing and should be limited to testing or tightly controlled automation.'
-        }
-
         $params = @{
           UserPrincipalName = $env:USER_PRINCIPAL_NAME
           UserHandle = $env:USER_HANDLE
@@ -157,33 +145,15 @@ runs:
           PassThru = $true
         }
 
-        if (-not [string]::IsNullOrWhiteSpace($env:AUTH_URL)) {
-          $params.AuthUrl = $env:AUTH_URL
-        }
-
-        if (-not [string]::IsNullOrWhiteSpace($env:PROXY)) {
-          $params.Proxy = $env:PROXY
-        }
-
-        if ($hasCompleteKeyVaultConfig) {
-          $params.KeyVaultName = $env:KEY_VAULT_NAME
-          $params.KeyVaultKeyName = $env:KEY_VAULT_KEY_NAME
-
-          if (-not [string]::IsNullOrWhiteSpace($env:KEY_VAULT_ACCESS_TOKEN)) {
-            $params.KeyVaultAccessToken = $env:KEY_VAULT_ACCESS_TOKEN
-          }
-          if (-not [string]::IsNullOrWhiteSpace($env:KEY_VAULT_CLIENT_ID)) {
-            $params.KeyVaultClientId = $env:KEY_VAULT_CLIENT_ID
-          }
-          if (-not [string]::IsNullOrWhiteSpace($env:KEY_VAULT_CLIENT_SECRET)) {
-            $params.KeyVaultClientSecret = $env:KEY_VAULT_CLIENT_SECRET
-          }
-          if (-not [string]::IsNullOrWhiteSpace($env:KEY_VAULT_TENANT_ID)) {
-            $params.KeyVaultTenantId = $env:KEY_VAULT_TENANT_ID
-          }
-        } else {
-          $params.PrivateKey = $env:PRIVATE_KEY
-        }
+        Add-OptionalParameter -Parameters $params -Name AuthUrl -Value $env:AUTH_URL
+        Add-OptionalParameter -Parameters $params -Name Proxy -Value $env:PROXY
+        Add-OptionalParameter -Parameters $params -Name KeyVaultName -Value $env:KEY_VAULT_NAME
+        Add-OptionalParameter -Parameters $params -Name KeyVaultKeyName -Value $env:KEY_VAULT_KEY_NAME
+        Add-OptionalParameter -Parameters $params -Name KeyVaultAccessToken -Value $env:KEY_VAULT_ACCESS_TOKEN
+        Add-OptionalParameter -Parameters $params -Name KeyVaultClientId -Value $env:KEY_VAULT_CLIENT_ID
+        Add-OptionalParameter -Parameters $params -Name KeyVaultClientSecret -Value $env:KEY_VAULT_CLIENT_SECRET
+        Add-OptionalParameter -Parameters $params -Name KeyVaultTenantId -Value $env:KEY_VAULT_TENANT_ID
+        Add-OptionalParameter -Parameters $params -Name PrivateKey -Value $env:PRIVATE_KEY
 
         if ($env:EXPORT_AUTH_COOKIE -ne 'false') {
           $params.IncludeAuthenticationCookie = $true
