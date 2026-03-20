@@ -214,6 +214,24 @@ The script no longer writes token previews to the console. It only includes the 
 - `azure/login` should run before this action when using Key Vault-backed signing.
 - If you grant Key Vault data-plane access, use a role or permission set that allows signing but no broader secret access than necessary.
 
+## Minimal OIDC Setup
+
+The repository includes [Setup-GitHubActionServicePrincipal.ps1](c:/Users/nathanmcnulty/GitHub/action-passkey-login/Setup-GitHubActionServicePrincipal.ps1), a minimal helper that:
+
+- creates or reuses an Entra app registration
+- creates or reuses its service principal
+- creates one GitHub Actions federated credential for a branch
+
+It does not assign API permissions or create secrets. That keeps the setup small and aligned with this action's use of `azure/login` plus Key Vault signing.
+
+Example:
+
+```powershell
+./Setup-GitHubActionServicePrincipal.ps1
+```
+
+After running it, store the emitted values as GitHub variables and grant the service principal `Key Vault Crypto User` on the target Key Vault or key.
+
 ## Publishing
 
 Tag a release such as `v1.0.0` and publish through the GitHub Marketplace flow in repository settings.
