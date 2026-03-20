@@ -442,7 +442,7 @@ function Select-PreferredEstsCookie {
         [System.Net.CookieCollection]$Cookies
     )
 
-    foreach ($cookieName in @('ESTSAUTHPERSISTENT', 'ESTSAUTH', 'ESTSAUTHLIGHT')) {
+    foreach ($cookieName in @('ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT')) {
         $candidate = $Cookies | Where-Object Name -EQ $cookieName | Select-Object -First 1
         if ($candidate) {
             return $candidate
@@ -1172,7 +1172,7 @@ if ($allCookies | Where-Object Name -Like "ESTS*") {
             Write-Host "  Signature Method:   Local Private Key" -ForegroundColor White
         }
         Write-Host "  Cookie Type:        $($ests.Name)" -ForegroundColor White
-        if ($ests.Name -eq 'ESTSAUTHPERSISTENT') {
+        if ($ests.Name -eq 'ESTSAUTH') {
             Write-Host "  Cookie Use:         Preferred for downstream ESTS cookie consumers" -ForegroundColor White
         }
 

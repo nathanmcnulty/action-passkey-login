@@ -19,7 +19,7 @@ jobs:
         with:
           credential-id: ${{ secrets.PASSKEY_CREDENTIAL_ID }}
           user-handle: ${{ secrets.PASSKEY_USER_HANDLE }}
-          user-principal-name: ${{ vars.PASSKEY_USER_PRINCIPAL_NAME }}
+          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME || vars.PASSKEY_USER_PRINCIPAL_NAME }}
           private-key: ${{ secrets.PASSKEY_PRIVATE_KEY }}
 
       - name: Validate outputs without printing the cookie
