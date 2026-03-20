@@ -436,6 +436,62 @@ function ConvertTo-PlainTextValue {
     throw "PrivateKey must be either a string or SecureString. Received: $($Value.GetType().FullName)"
 }
 
+function Resolve-KeyVaultReference {
+    param(
+        [string]$VaultName,
+        [string]$KeyName,
+        [string]$KeyId
+    )
+
+    $resolvedVaultName = $VaultName
+    $resolvedKeyName = $KeyName
+    $resolvedKeyId = $KeyId
+
+    $referenceValue = if ($resolvedKeyId) { $resolvedKeyId } elseif ($resolvedKeyName) { $resolvedKeyName } else { $null }
+    if ($referenceValue -and $referenceValue -match '^https://([^.]+)\.vault\.azure\.net/keys/([^/]+)(?:/([^/?]+))?$') {
+        $resolvedVaultName = $Matches[1]
+        $resolvedKeyName = $Matches[2]
+        $resolvedKeyId = if ($Matches[3]) { "https://$($Matches[1]).vault.azure.net/keys/$($Matches[2])/$($Matches[3])" } else { "https://$($Matches[1]).vault.azure.net/keys/$($Matches[2])" }
+    }
+
+    return @{
+        vaultName = $resolvedVaultName
+        keyName   = $resolvedKeyName
+        keyId     = $resolvedKeyId
+    }
+}
+
+function Get-HttpErrorMessage {
+    param(
+        [Parameter(Mandatory)]
+        $ErrorRecord
+    )
+
+    $message = $ErrorRecord.Exception.Message
+
+    if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+        return "$message | $($ErrorRecord.ErrorDetails.Message)"
+    }
+
+    try {
+        $responseStream = $ErrorRecord.Exception.Response.GetResponseStream()
+        if ($responseStream) {
+            $reader = [System.IO.StreamReader]::new($responseStream)
+            try {
+                $responseText = $reader.ReadToEnd()
+                if ($responseText) {
+                    return "$message | $responseText"
+                }
+            } finally {
+                $reader.Dispose()
+            }
+        }
+    } catch {
+    }
+
+    return $message
+}
+
 function Select-PreferredEstsCookie {
     param(
         [Parameter(Mandatory)]
@@ -525,7 +581,11 @@ function New-FidoSignature {
         
         # Key Vault expects base64url encoded hash
         $dataBase64Url = ConvertTo-Base64Url -Bytes $dataHash
-        $signUri = "https://$($KeyVaultInfo.vaultName).vault.azure.net/keys/$($KeyVaultInfo.keyName)/sign?api-version=7.4"
+        if ($KeyVaultInfo.keyId) {
+            $signUri = "$($KeyVaultInfo.keyId.TrimEnd('/'))/sign?api-version=7.4"
+        } else {
+            $signUri = "https://$($KeyVaultInfo.vaultName).vault.azure.net/keys/$($KeyVaultInfo.keyName)/sign?api-version=7.4"
+        }
         $headers = @{
             "Authorization" = "Bearer $KeyVaultToken"
             "Content-Type"  = "application/json"
@@ -568,7 +628,7 @@ function New-FidoSignature {
                 break
                 
             } catch {
-                $errorMsg = $_.Exception.Message
+                $errorMsg = Get-HttpErrorMessage -ErrorRecord $_
                 Write-Warning "Key Vault sign attempt $attempt failed: $errorMsg"
                 
                 if ($attempt -lt $maxRetries) {
@@ -734,23 +794,28 @@ $kvToken = $null
 # Determine Key Vault configuration from parameters or JSON
 $resolvedKvName = $KeyVaultName
 $resolvedKvKeyName = $KeyVaultKeyName
+$resolvedKvKeyId = $null
 
 if ($keyData.keyVault) {
     if (-not $resolvedKvName) { $resolvedKvName = $keyData.keyVault.vaultName }
     if (-not $resolvedKvKeyName) { $resolvedKvKeyName = $keyData.keyVault.keyName }
+    if ($keyData.keyVault.keyId) { $resolvedKvKeyId = $keyData.keyVault.keyId }
+
+    $resolvedKeyVaultReference = Resolve-KeyVaultReference -VaultName $resolvedKvName -KeyName $resolvedKvKeyName -KeyId $resolvedKvKeyId
     
     # Build kvInfo object for use in signing
     $kvInfo = @{
-        vaultName = $resolvedKvName
-        keyName   = $resolvedKvKeyName
-        keyId     = $keyData.keyVault.keyId
+        vaultName = $resolvedKeyVaultReference.vaultName
+        keyName   = $resolvedKeyVaultReference.keyName
+        keyId     = $resolvedKeyVaultReference.keyId
     }
 } elseif ($KeyVaultName -and $KeyVaultKeyName) {
+    $resolvedKeyVaultReference = Resolve-KeyVaultReference -VaultName $KeyVaultName -KeyName $KeyVaultKeyName -KeyId $null
     # Manual Key Vault mode (no JSON keyVault object, but parameters provided)
     $kvInfo = @{
-        vaultName = $KeyVaultName
-        keyName   = $KeyVaultKeyName
-        keyId     = $null
+        vaultName = $resolvedKeyVaultReference.vaultName
+        keyName   = $resolvedKeyVaultReference.keyName
+        keyId     = $resolvedKeyVaultReference.keyId
     }
 }
 
