@@ -158,7 +158,7 @@ jobs:
 
 The action exports the ESTS cookie by default because that is the main artifact it produces. If you want to disable that output, set `export-auth-cookie: false`.
 
-Example using the cookie with a downstream PowerShell flow like `Connect-XdrByEstsCookie`:
+Example using the cookie with a downstream PowerShell flow. This action is designed to return `ESTSAUTH`, so downstream validation should use the emitted `cookie-name` output instead of assuming `ESTSAUTHPERSISTENT`.
 
 ```yaml
       - name: Passkey login
@@ -175,16 +175,26 @@ Example using the cookie with a downstream PowerShell flow like `Connect-XdrByEs
         shell: pwsh
         env:
           ESTS_COOKIE: ${{ steps.passkey.outputs.auth-cookie }}
+          ESTS_COOKIE_NAME: ${{ steps.passkey.outputs.cookie-name }}
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:ESTS_COOKIE)) {
             throw 'Expected auth-cookie output to be present.'
           }
 
-          $secureCookie = ConvertTo-SecureString $env:ESTS_COOKIE -AsPlainText -Force
-          # Connect-XdrByEstsCookie -SecureEstsAuthCookieValue $secureCookie
+          if ($env:ESTS_COOKIE_NAME -ne 'ESTSAUTH') {
+            throw "Expected ESTSAUTH but received '$($env:ESTS_COOKIE_NAME)'."
+          }
+
+          ./scripts/Test-XdrConnectionByEstsCookie.ps1 \
+            -EstsCookieValue $env:ESTS_COOKIE \
+            -EstsCookieName $env:ESTS_COOKIE_NAME \
+            -TenantId $env:TENANT_ID
 ```
 
 Do not print the cookie. Do not promote it to an artifact. Keep its use scoped to the smallest possible set of steps.
+
+For a full repository-hosted validation flow, use [test-xdr-key-vault.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-xdr-key-vault.yml). It signs in with the action, asserts that the returned cookie is `ESTSAUTH`, and then validates that the cookie can bootstrap a session to `security.microsoft.com`.
 
 ## Local key mode
 
