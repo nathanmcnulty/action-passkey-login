@@ -59,7 +59,7 @@ outputs:
     description: 'The Key Vault used for signing, when applicable.'
     value: ${{ steps.run-passkey.outputs.key-vault-name }}
   auth-cookie:
-    description: 'The masked ESTS cookie value when export-auth-cookie is true.'
+    description: 'The masked ESTS cookie value unless export-auth-cookie is set to false.'
     value: ${{ steps.run-passkey.outputs.auth-cookie }}
 branding:
   icon: lock
