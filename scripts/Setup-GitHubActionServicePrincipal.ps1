@@ -29,13 +29,13 @@
     the service principal the Key Vault Crypto User role on that vault.
 
 .EXAMPLE
-    .\Setup-GitHubActionServicePrincipal.ps1
+    .\scripts\Setup-GitHubActionServicePrincipal.ps1
 
 .EXAMPLE
-    .\Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo 'contoso/action-passkey-login' -Branch 'main'
+    .\scripts\Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo 'contoso/action-passkey-login' -Branch 'main'
 
 .EXAMPLE
-    .\Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName 'kv-passkeys-prod'
+    .\scripts\Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName 'kv-passkeys-prod'
 #>
 
 [CmdletBinding()]

@@ -2,6 +2,18 @@
 
 Reusable GitHub Action for Entra passkey authentication whose primary purpose is to return an ESTS cookie for downstream tools. The safest supported design is to keep the passkey signing key in Azure Key Vault, authenticate the workflow to Azure with `azure/login`, and let this action return the cookie as a masked output.
 
+## Repository layout
+
+- Runtime action files stay in the repository root:
+  - `action.yml`
+  - `PasskeyLogin.ps1`
+  - `README.md`
+- Optional onboarding material lives outside the runtime surface:
+  - `examples/` for sanitized passkey JSON templates
+  - `scripts/` for one-time setup helpers
+
+Most users only need the workflow example in this README plus the action inputs. The `examples/` and `scripts/` folders are optional setup aids.
+
 ## Security model
 
 This repository now treats security as the primary design goal.
@@ -225,8 +237,8 @@ The workflow signs into Azure with `azure/login`, invokes the local action with 
 
 For local testing outside GitHub Actions, create your own passkey JSON file and keep it out of source control. The repository includes sanitized examples for the expected shape:
 
-- [passkey.private-key.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/passkey.private-key.example.json)
-- [passkey.keyvault.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/passkey.keyvault.example.json)
+- [examples/passkey.private-key.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/examples/passkey.private-key.example.json)
+- [examples/passkey.keyvault.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/examples/passkey.keyvault.example.json)
 
 Example:
 
@@ -245,7 +257,7 @@ The script no longer writes token previews to the console. It only includes the 
 
 ## Minimal OIDC Setup
 
-The repository includes [Setup-GitHubActionServicePrincipal.ps1](c:/Users/nathanmcnulty/GitHub/action-passkey-login/Setup-GitHubActionServicePrincipal.ps1), a minimal helper that:
+The repository includes [scripts/Setup-GitHubActionServicePrincipal.ps1](c:/Users/nathanmcnulty/GitHub/action-passkey-login/scripts/Setup-GitHubActionServicePrincipal.ps1), a minimal helper that:
 
 - creates or reuses an Entra app registration
 - creates or reuses its service principal
@@ -257,13 +269,13 @@ It does not assign API permissions or create secrets. That keeps the setup small
 Example:
 
 ```powershell
-./Setup-GitHubActionServicePrincipal.ps1
+./scripts/Setup-GitHubActionServicePrincipal.ps1
 ```
 
 To create the OIDC objects and grant the Key Vault role in one step:
 
 ```powershell
-./Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName '<your-key-vault-name>'
+./scripts/Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName '<your-key-vault-name>'
 ```
 
 After running it, store the emitted values as GitHub secrets or variables to match your workflow style. If you did not pass `-KeyVaultName`, grant the service principal `Key Vault Crypto User` on the target Key Vault or key separately.
