@@ -197,6 +197,20 @@ You can test this action in the same private repository by using a local path re
 
 That is the simplest way to validate the action before making the repository public. Once you want other repositories to consume it, publish a tag such as `v1` and reference `owner/action-passkey-login@v1`.
 
+For Key Vault-backed testing in this same repository, use the included workflow [test-key-vault.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-key-vault.yml) and configure these repository values first:
+
+- Secrets:
+  - `PASSKEY_CREDENTIAL_ID`
+  - `PASSKEY_USER_HANDLE`
+  - `PASSKEY_USER_PRINCIPAL_NAME`
+- Variables:
+  - `AZURE_CLIENT_ID`
+  - `AZURE_TENANT_ID`
+  - `PASSKEY_KEY_VAULT_NAME`
+  - `PASSKEY_KEY_VAULT_KEY_NAME`
+
+The workflow signs into Azure with `azure/login`, invokes the local action with Key Vault inputs, and verifies that the action reports `Azure Key Vault` as the signature method.
+
 ## Local script testing
 
 For local testing outside GitHub Actions, the included script still supports a passkey JSON file:
