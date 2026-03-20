@@ -27,7 +27,7 @@ Suggested GitHub Environment storage:
 | --- | --- | --- |
 | `credential-id` | Secret | Authenticator-specific material. |
 | `user-handle` | Secret | Authenticator-specific material. |
-| `user-principal-name` | Variable or secret | Either works. Use a variable for convenience or a secret if you want all inputs stored the same way. |
+| `user-principal-name` | Variable or secret | Either works, but the included private-key test workflow reads it from a secret for simplicity. |
 | `key-vault-name` | Variable | Configuration only. |
 | `key-vault-key-name` | Variable | Configuration only. |
 | `key-vault-tenant-id` | Variable | Configuration only. |
@@ -107,7 +107,7 @@ jobs:
         with:
           credential-id: ${{ secrets.PASSKEY_CREDENTIAL_ID }}
           user-handle: ${{ secrets.PASSKEY_USER_HANDLE }}
-          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME || vars.PASSKEY_USER_PRINCIPAL_NAME }}
+          user-principal-name: ${{ vars.PASSKEY_USER_PRINCIPAL_NAME }}
           key-vault-name: ${{ vars.PASSKEY_KEY_VAULT_NAME }}
           key-vault-key-name: ${{ vars.PASSKEY_KEY_VAULT_KEY_NAME }}
           key-vault-tenant-id: ${{ vars.KEY_VAULT_TENANT_ID }}
@@ -143,7 +143,7 @@ Example using the cookie with a downstream PowerShell flow like `Connect-XdrByEs
         with:
           credential-id: ${{ secrets.PASSKEY_CREDENTIAL_ID }}
           user-handle: ${{ secrets.PASSKEY_USER_HANDLE }}
-          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME || vars.PASSKEY_USER_PRINCIPAL_NAME }}
+          user-principal-name: ${{ vars.PASSKEY_USER_PRINCIPAL_NAME }}
           key-vault-name: ${{ vars.PASSKEY_KEY_VAULT_NAME }}
           key-vault-key-name: ${{ vars.PASSKEY_KEY_VAULT_KEY_NAME }}
 
@@ -172,7 +172,7 @@ This is expected to be common during early testing or read-only automation, but 
         with:
           credential-id: ${{ secrets.PASSKEY_CREDENTIAL_ID }}
           user-handle: ${{ secrets.PASSKEY_USER_HANDLE }}
-          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME || vars.PASSKEY_USER_PRINCIPAL_NAME }}
+          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME }}
           private-key: ${{ secrets.PASSKEY_PRIVATE_KEY }}
 ```
 
@@ -191,7 +191,7 @@ You can test this action in the same private repository by using a local path re
         with:
           credential-id: ${{ secrets.PASSKEY_CREDENTIAL_ID }}
           user-handle: ${{ secrets.PASSKEY_USER_HANDLE }}
-          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME || vars.PASSKEY_USER_PRINCIPAL_NAME }}
+          user-principal-name: ${{ secrets.PASSKEY_USER_PRINCIPAL_NAME }}
           private-key: ${{ secrets.PASSKEY_PRIVATE_KEY }}
 ```
 
