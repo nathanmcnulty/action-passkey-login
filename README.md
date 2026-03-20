@@ -92,7 +92,7 @@ jobs:
     environment: entra-prod
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Azure login via OIDC
         uses: azure/login@v2
