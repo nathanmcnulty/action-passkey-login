@@ -186,9 +186,9 @@ Example using the cookie with a downstream PowerShell flow. This action is desig
             throw "Expected ESTSAUTH but received '$($env:ESTS_COOKIE_NAME)'."
           }
 
-          ./scripts/Test-XdrConnectionByEstsCookie.ps1 \
-            -EstsCookieValue $env:ESTS_COOKIE \
-            -EstsCookieName $env:ESTS_COOKIE_NAME \
+          ./scripts/Test-XdrConnectionByEstsCookie.ps1 `
+            -EstsCookieValue $env:ESTS_COOKIE `
+            -EstsCookieName $env:ESTS_COOKIE_NAME `
             -TenantId $env:TENANT_ID
 ```
 

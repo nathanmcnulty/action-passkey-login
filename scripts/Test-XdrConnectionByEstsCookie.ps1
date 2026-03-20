@@ -34,13 +34,13 @@ $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $session.UserAgent = $UserAgent
 
 # Bootstrap the Microsoft login cookie container before adding the ESTS cookie.
-$null = Invoke-WebRequest \
-    -UseBasicParsing \
-    -MaximumRedirection 99 \
-    -ErrorAction SilentlyContinue \
-    -WebSession $session \
-    -Method Get \
-    -Uri 'https://login.microsoftonline.com/error' \
+$null = Invoke-WebRequest `
+    -UseBasicParsing `
+    -MaximumRedirection 99 `
+    -ErrorAction SilentlyContinue `
+    -WebSession $session `
+    -Method Get `
+    -Uri 'https://login.microsoftonline.com/error' `
     -Verbose:$false
 
 $cookie = [System.Net.Cookie]::new($EstsCookieName, $EstsCookieValue)
@@ -52,12 +52,12 @@ $securityPortalUri = if ($TenantId) {
     'https://security.microsoft.com/'
 }
 
-$securityPortal = Invoke-WebRequest \
-    -UseBasicParsing \
-    -ErrorAction SilentlyContinue \
-    -WebSession $session \
-    -Method Get \
-    -Uri $securityPortalUri \
+$securityPortal = Invoke-WebRequest `
+    -UseBasicParsing `
+    -ErrorAction SilentlyContinue `
+    -WebSession $session `
+    -Method Get `
+    -Uri $securityPortalUri `
     -Verbose:$false
 
 if ($securityPortal.InputFields.name -notcontains 'code') {
@@ -91,13 +91,13 @@ foreach ($field in $requiredFields) {
     $body[$field] = $securityPortal.InputFields | Where-Object { $_.name -eq $field } | Select-Object -ExpandProperty value
 }
 
-$null = Invoke-WebRequest \
-    -UseBasicParsing \
-    -ErrorAction SilentlyContinue \
-    -WebSession $session \
-    -Method Post \
-    -Uri $securityPortalUri \
-    -Body $body \
+$null = Invoke-WebRequest `
+    -UseBasicParsing `
+    -ErrorAction SilentlyContinue `
+    -WebSession $session `
+    -Method Post `
+    -Uri $securityPortalUri `
+    -Body $body `
     -Verbose:$false
 
 $xdrCookies = $session.Cookies.GetCookies('https://security.microsoft.com')

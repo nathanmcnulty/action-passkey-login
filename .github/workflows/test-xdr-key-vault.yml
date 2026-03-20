@@ -61,9 +61,9 @@ jobs:
           ESTS_COOKIE_NAME: ${{ steps.passkey.outputs.cookie-name }}
           TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: |
-          $result = ./scripts/Test-XdrConnectionByEstsCookie.ps1 \
-            -EstsCookieValue $env:ESTS_COOKIE \
-            -EstsCookieName $env:ESTS_COOKIE_NAME \
+          $result = ./scripts/Test-XdrConnectionByEstsCookie.ps1 `
+            -EstsCookieValue $env:ESTS_COOKIE `
+            -EstsCookieName $env:ESTS_COOKIE_NAME `
             -TenantId $env:TENANT_ID
 
           if (-not $result.Success) {
