@@ -526,6 +526,58 @@ function Select-PreferredEstsCookie {
     return $null
 }
 
+function Get-AllCookiesFromContainer {
+    param(
+        [Parameter(Mandatory)]
+        [System.Net.CookieContainer]$CookieContainer
+    )
+
+    $allCookies = [System.Net.CookieCollection]::new()
+    $getAllCookiesMethod = $CookieContainer.GetType().GetMethod('GetAllCookies', [System.Type[]]@())
+    if ($getAllCookiesMethod) {
+        foreach ($cookie in $getAllCookiesMethod.Invoke($CookieContainer, @())) {
+            $allCookies.Add($cookie)
+        }
+
+        return $allCookies
+    }
+
+    $bindingFlags = [System.Reflection.BindingFlags]'Instance, NonPublic'
+    $domainTableField = $CookieContainer.GetType().GetField('m_domainTable', $bindingFlags)
+    if (-not $domainTableField) {
+        return $allCookies
+    }
+
+    $domainTable = $domainTableField.GetValue($CookieContainer)
+    if (-not $domainTable) {
+        return $allCookies
+    }
+
+    foreach ($pathList in $domainTable.Values) {
+        if (-not $pathList) {
+            continue
+        }
+
+        $pathListField = $pathList.GetType().GetField('m_list', $bindingFlags)
+        if (-not $pathListField) {
+            continue
+        }
+
+        $pathListTable = $pathListField.GetValue($pathList)
+        if (-not $pathListTable) {
+            continue
+        }
+
+        foreach ($cookieCollection in $pathListTable.Values) {
+            foreach ($cookie in $cookieCollection) {
+                $allCookies.Add($cookie)
+            }
+        }
+    }
+
+    return $allCookies
+}
+
 function New-FidoAuthenticatorData {
     param(
         [Parameter(Mandatory)]
@@ -1272,10 +1324,33 @@ if ($useKeyVault) {
 
 # Check success
 Write-Host "`n=== Verifying Authentication Result ===" -ForegroundColor Cyan
-$allCookies = $session.Cookies.GetCookies("https://login.microsoftonline.com")
-Write-Verbose "Checking cookies: $($allCookies.Name -join ', ')"
+$allCookies = Get-AllCookiesFromContainer -CookieContainer $session.Cookies
+$estsCookies = @($allCookies | Where-Object Name -Like 'ESTS*')
 
-if ($allCookies | Where-Object Name -Like "ESTS*") {
+if ($estsCookies.Count -eq 0) {
+    foreach ($attempt in 1..3) {
+        Write-Host "  Finalizing authenticated session (attempt $attempt of 3)..." -ForegroundColor Gray
+        try {
+            Invoke-WebRequest -UseBasicParsing -Uri $AuthUrl -Method Get -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck | Out-Null
+        } catch {
+            Write-Verbose "Finalization request failed on attempt ${attempt}: $($_.Exception.Message)"
+        }
+
+        Start-Sleep -Milliseconds 250
+        $allCookies = Get-AllCookiesFromContainer -CookieContainer $session.Cookies
+        $estsCookies = @($allCookies | Where-Object Name -Like 'ESTS*')
+        if ($estsCookies.Count -gt 0) {
+            break
+        }
+    }
+}
+
+$cookieSummary = $allCookies |
+    Sort-Object Domain, Name, Path -Unique |
+    ForEach-Object { '{0}@{1}{2}' -f $_.Name, $_.Domain, $_.Path }
+Write-Verbose "Checking cookies across session: $($cookieSummary -join ', ')"
+
+if ($estsCookies.Count -gt 0) {
     Write-Host "`n╭────────────────────────────────────────────────────────────╮" -ForegroundColor Green
     Write-Host "│                  ✓ Authentication Successful!                 │" -ForegroundColor Green
     Write-Host "╰────────────────────────────────────────────────────────────╯" -ForegroundColor Green
@@ -1331,7 +1406,21 @@ if ($allCookies | Where-Object Name -Like "ESTS*") {
         }
     }
 } else {
+    $cookieNamesByDomain = $allCookies |
+        Group-Object Domain |
+        Sort-Object Name |
+        ForEach-Object {
+            $cookieNames = $_.Group.Name | Sort-Object -Unique
+            '{0}: {1}' -f $_.Name, ($cookieNames -join ', ')
+        }
+
     Write-Warning "Login flow completed but authentication success could not be verified"
+    if ($cookieNamesByDomain) {
+        Write-Host "  Session cookies discovered by domain:" -ForegroundColor Yellow
+        foreach ($domainCookieSummary in $cookieNamesByDomain) {
+            Write-Host "    $domainCookieSummary" -ForegroundColor Yellow
+        }
+    }
     if ($PersistSessionToGlobalScope) {
         Write-Host "  Session may still be usable - saved to `$global:webSession" -ForegroundColor Yellow
         $global:webSession = $session

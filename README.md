@@ -43,6 +43,11 @@ The passkey values must come from the same registration.
 
 Do not mix the `credential-id` from one passkey with the Key Vault key from another. That mismatch is easy to create during testing and is hard to spot from masked workflow logs.
 
+If you test both signing modes, keep two distinct secret sets when they come from different passkey registrations:
+
+- Key Vault-backed test values for the Key Vault workflow
+- Private-key test values for the private-key workflow
+
 ## What should be stored where
 
 Suggested GitHub Environment storage:
@@ -242,6 +247,15 @@ For Key Vault-backed testing in this same repository, use the included workflow 
 - `PASSKEY_KEY_VAULT_KEY_NAME`
 
 The workflow signs into Azure with `azure/login`, invokes the local action with Key Vault inputs, and verifies that the action reports `Azure Key Vault` as the signature method.
+
+For local private-key testing in this same repository, use [test-private-key.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-private-key.yml) and configure a separate private-key passkey registration with these repository secrets:
+
+- `PASSKEY_PRIVATE_CREDENTIAL_ID`
+- `PASSKEY_PRIVATE_USER_HANDLE`
+- `PASSKEY_PRIVATE_USER_PRINCIPAL_NAME`
+- `PASSKEY_PRIVATE_KEY`
+
+Do not point the private-key workflow at the Key Vault-backed registration values. The `credential-id`, `user-handle`, and `private-key` must all belong to the same passkey registration.
 
 ## Local script testing
 
