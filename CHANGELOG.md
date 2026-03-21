@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+## v1.1.0 - 2026-03-21
+
+Improves private-key workflow isolation and release readiness after the first public release.
+
+Highlights:
+
+1. Added dedicated repository secret names for the local private-key workflow:
+	- `PASSKEY_PRIVATE_CREDENTIAL_ID`
+	- `PASSKEY_PRIVATE_USER_HANDLE`
+	- `PASSKEY_PRIVATE_USER_PRINCIPAL_NAME`
+	- `PASSKEY_PRIVATE_KEY`
+2. Supports storing Key Vault-backed and local private-key registration values in the same repository at the same time without secret-name collisions.
+3. Hardened the private-key authentication verification path so the action can better finalize and inspect session cookies before returning outputs.
+
 ## v1.0.0 - 2026-03-21
 
 Initial public release of the Passkey Login Action.
