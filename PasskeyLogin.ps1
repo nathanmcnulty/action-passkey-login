@@ -1073,7 +1073,17 @@ Write-Host "  Submitting FIDO2 assertion..." -ForegroundColor Gray
 Write-Verbose "Assertion payload: $($fidoPayload | ConvertTo-Json -Compress)"
 Write-Verbose "Login URI: $LoginUri"
 
-$respFinalize = Invoke-WebRequest -UseBasicParsing -Uri $LoginUri -Method Post -Body $Payload -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck
+$submitParams = @{
+    UseBasicParsing = $true
+    Uri = $LoginUri
+    Method = 'Post'
+    Body = $Payload
+    WebSession = $session
+    MaximumRedirection = 10
+    SkipHttpErrorCheck = $true
+}
+
+$respFinalize = Invoke-WebRequest @submitParams
 
 Write-Verbose "Initial response status: $($respFinalize.StatusCode)"
 if ($respFinalize.StatusCode -ge 400) {
@@ -1094,7 +1104,10 @@ $Payload.flowToken = $SessionInformation.oGetCredTypeResult.FlowToken
 Write-Host "  Submitting with SSO reload..." -ForegroundColor Gray
 Write-Verbose "SSO reload URI: $LoginUri"
 
-$respFinalize = Invoke-WebRequest -UseBasicParsing -Uri $LoginUri -Method Post -Body $Payload -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck
+$submitParams.Uri = $LoginUri
+$submitParams.Body = $Payload
+
+$respFinalize = Invoke-WebRequest @submitParams
 
 Write-Verbose "SSO reload response status: $($respFinalize.StatusCode)"
 if ($respFinalize.StatusCode -ge 400) {
