@@ -513,7 +513,7 @@ function Get-HttpErrorMessage {
 function Select-PreferredEstsCookie {
     param(
         [Parameter(Mandatory)]
-        [System.Net.CookieCollection]$Cookies
+        [object[]]$Cookies
     )
 
     foreach ($cookieName in @('ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT')) {
@@ -536,7 +536,7 @@ function Get-AllCookiesFromContainer {
     $getAllCookiesMethod = $CookieContainer.GetType().GetMethod('GetAllCookies', [System.Type[]]@())
     if ($getAllCookiesMethod) {
         foreach ($cookie in $getAllCookiesMethod.Invoke($CookieContainer, @())) {
-            $allCookies.Add($cookie)
+            [void]$allCookies.Add($cookie)
         }
 
         return $allCookies
@@ -570,7 +570,7 @@ function Get-AllCookiesFromContainer {
 
         foreach ($cookieCollection in $pathListTable.Values) {
             foreach ($cookie in $cookieCollection) {
-                $allCookies.Add($cookie)
+                [void]$allCookies.Add($cookie)
             }
         }
     }
