@@ -22,7 +22,7 @@ Recommended path:
 
 1. Store the passkey signing key in Azure Key Vault.
 2. Use GitHub OIDC with `azure/login` so the workflow does not need a long-lived Azure client secret.
-3. Store only passkey metadata in GitHub.
+3. Store only passkey metadata in GitHub, no key material.
 4. The action masks and exports the authenticated ESTS cookie by default because that is its primary purpose.
 
 Less preferred path:
@@ -49,8 +49,8 @@ Suggested GitHub Environment storage:
 
 | Item | Store as | Notes |
 | --- | --- | --- |
-| `credential-id` | Secret | Authenticator-specific material. |
-| `user-handle` | Secret | Authenticator-specific material. |
+| `credential-id` | Secret | Unique identifier of the passkey. |
+| `user-handle` | Secret | Unique identifier of the user. |
 | `user-principal-name` | Secret or variable | Use one approach consistently within a workflow. |
 | `key-vault-name` | Secret or variable | Configuration only. The included workflows use secrets for simplicity. |
 | `key-vault-key-name` | Secret or variable | Configuration only. The included workflows use secrets for simplicity. |
@@ -156,7 +156,7 @@ jobs:
 
 ## Using the ESTS cookie downstream
 
-The action exports the ESTS cookie by default because that is the main artifact it produces. If you want to disable that output, set `export-auth-cookie: false`.
+The action exports the ESTS cookie by default because that is the main artifact it produces. If you want to disable that output for testing, set `export-auth-cookie: false`.
 
 Example using the cookie with a downstream PowerShell flow. This action is designed to return `ESTSAUTH`, so downstream validation should use the emitted `cookie-name` output instead of assuming `ESTSAUTHPERSISTENT`.
 

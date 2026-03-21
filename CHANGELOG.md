@@ -1,0 +1,26 @@
+﻿# Changelog
+
+## v1.0.0 - 2026-03-21
+
+Initial public release of the Passkey Login Action.
+
+Purpose:
+
+1. Authenticate to Entra with a passkey.
+2. Prefer Azure Key Vault-backed signing for automation.
+3. Return an `ESTSAUTH` cookie for downstream tools and validation flows.
+
+Included in this release:
+
+1. Composite GitHub Action defined in [action.yml](action.yml).
+2. PowerShell authentication implementation in [PasskeyLogin.ps1](PasskeyLogin.ps1).
+3. Key Vault-first workflow guidance and setup documentation in [README.md](README.md).
+4. Optional onboarding helpers in [scripts/Setup-GitHubActionServicePrincipal.ps1](scripts/Setup-GitHubActionServicePrincipal.ps1).
+5. Sanitized example passkey templates in [examples/passkey.private-key.example.json](examples/passkey.private-key.example.json) and [examples/passkey.keyvault.example.json](examples/passkey.keyvault.example.json).
+6. Validation workflows for Key Vault-backed authentication and XDR session bootstrap.
+
+Security posture:
+
+1. Azure Key Vault is the recommended signing path.
+2. Local private key support remains available as a fallback for controlled testing.
+3. The action masks sensitive values and treats the returned cookie as sensitive session material.
