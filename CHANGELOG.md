@@ -38,3 +38,8 @@ Security posture:
 1. Azure Key Vault is the recommended signing path.
 2. Local private key support remains available as a fallback for controlled testing.
 3. The action masks sensitive values and treats the returned cookie as sensitive session material.
+## Unattended consent and output hardening
+
+- Stop consent interrupts without submitting approval; operators must arrange consent separately.
+- Omit shortened credential identifiers because masking their full values does not mask prefixes.
+- Add offline tests for consent rejection before any HTTP submission.

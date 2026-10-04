@@ -1,4 +1,4 @@
-﻿#Requires -Version 7.0
+#Requires -Version 7.0
 
 <#
 .SYNOPSIS
@@ -873,8 +873,6 @@ Write-Host "`n=== Authentication Configuration ===" -ForegroundColor Cyan
 Write-Host "  User:            $targetUser" -ForegroundColor White
 Write-Host "  RP ID:           $rpId" -ForegroundColor White
 Write-Host "  Origin:          $origin" -ForegroundColor White
-Write-Host "  Credential ID:   $($credentialId.Substring(0, [Math]::Min(20, $credentialId.Length)))..." -ForegroundColor White
-Write-Host "  User Handle:     $($userHandle.Substring(0, [Math]::Min(20, $userHandle.Length)))..." -ForegroundColor White
 
 # Check if using Key Vault
 $useKeyVault = $false
@@ -1194,20 +1192,6 @@ if (-not ($respFinalize.Content -match '{(.*)}')) {
 $LoopCount = 0
 $authenticationFailed = $false
 $InterruptHandlers = @{
-    "CmsiInterrupt" = @{
-        Message = "Handling consent prompt"
-        Uri = "https://login.microsoftonline.com/appverify"
-        Method = "Post"
-        Body = @{
-            ContinueAuth = "true"
-            i19 = { Get-Random -Minimum 1000 -Maximum 9999 }.Invoke()
-            canary = { $Debug.canary }
-            iscsrfspeedbump = "false"
-            flowToken = { $Debug.sFT }
-            hpgrequestid = { $Debug.correlationId }
-            ctx = { $Debug.sCtx }
-        }
-    }
     "KmsiInterrupt" = @{
         Message = "Handling KMSI prompt"
         Uri = "https://login.microsoftonline.com/kmsi"
@@ -1229,7 +1213,10 @@ $InterruptHandlers = @{
     }
 }
 
-while ($Debug.pgid -in $InterruptHandlers.Keys) {
+while ($Debug.pgid -in $InterruptHandlers.Keys -or $Debug.pgid -eq "CmsiInterrupt") {
+    if ($Debug.pgid -eq "CmsiInterrupt") {
+        throw "Consent is required. The passkey action will not approve new consent."
+    }
     if ($CurrentPageId -eq $LastPageId -or ++$LoopCount -gt 10) {
         $authenticationFailed = $true
         Write-Error "$(if ($CurrentPageId -eq $LastPageId) { 'Stuck in' } else { 'Exceeded maximum' }) interrupt loop. Authentication failed."
