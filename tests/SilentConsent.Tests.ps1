@@ -5,12 +5,12 @@ BeforeAll {
 }
 Describe 'Unattended login boundaries' {
  It 'parses without errors' {$errors.Count|Should -Be 0}
- It 'stops a consent interrupt before submitting an HTTP request' {
+ It 'stops an application-confirmation interrupt before submitting an HTTP request' {
   $loop=$ast.Find({param($node)$node -is [Management.Automation.Language.WhileStatementAst] -and $node.Condition.Extent.Text -match 'CmsiInterrupt'},$true)
   $loop|Should -Not -BeNullOrEmpty
   $Debug=@{pgid='CmsiInterrupt'};$InterruptHandlers=@{}
   Mock Invoke-WebRequest {throw 'Unexpected network call'}
-  {& ([scriptblock]::Create($loop.Extent.Text))}|Should -Throw '*will not approve new consent*'
+  {& ([scriptblock]::Create($loop.Extent.Text))}|Should -Throw '*will not submit approval*'
   Should -Invoke Invoke-WebRequest -Times 0
  }
  It 'has no automatic consent submission or shortened credential output' {

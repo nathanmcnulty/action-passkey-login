@@ -183,7 +183,7 @@ param (
     $RelyingParty = "login.microsoft.com",
 
     [Parameter(Mandatory = $false)]
-    $AuthUrl = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?response_type=code&redirect_uri=msauth.com.msauth.unsignedapp://auth&scope=https://graph.microsoft.com/.default&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+    $AuthUrl = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?response_type=code&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient&scope=https://graph.microsoft.com/.default&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46",
 
     [Parameter(Mandatory = $false)]
     $UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0',
@@ -980,7 +980,7 @@ try {
     throw
 }
 
-if ($AuthUrl -notmatch "^https://login.microsoftonline.com/") {
+if (-not [uri]::IsWellFormedUriString($AuthUrl,[UriKind]::Absolute) -or ([uri]$AuthUrl).Scheme -ne "https" -or ([uri]$AuthUrl).Host -ne "login.microsoftonline.com" -or ([uri]$AuthUrl).Port -ne 443 -or ([uri]$AuthUrl).UserInfo) {
     Write-Error "Auth URL must start with 'https://login.microsoftonline.com/'. Current: $AuthUrl"
     throw "Invalid auth URL"
 }
@@ -1215,7 +1215,7 @@ $InterruptHandlers = @{
 
 while ($Debug.pgid -in $InterruptHandlers.Keys -or $Debug.pgid -eq "CmsiInterrupt") {
     if ($Debug.pgid -eq "CmsiInterrupt") {
-        throw "Consent is required. The passkey action will not approve new consent."
+        throw "Application confirmation is required. The unattended passkey action will not submit approval."
     }
     if ($CurrentPageId -eq $LastPageId -or ++$LoopCount -gt 10) {
         $authenticationFailed = $true
