@@ -40,6 +40,6 @@ Security posture:
 3. The action masks sensitive values and treats the returned cookie as sensitive session material.
 ## Unattended application confirmation and output hardening
 
-- Use Azure CLI’s HTTPS native callback by default to avoid its native-scheme application-confirmation prompt. Stop any remaining application-confirmation interrupt without automatically submitting approval. This confirmation is separate from OAuth permission consent.
+- Use Azure CLI’s HTTPS native callback by default to avoid its native-scheme application-confirmation prompt. Stop remaining application-confirmation interrupts by default; explicit operator opt-in is bound to the expected authorization client. This confirmation is separate from OAuth permission consent.
 - Omit shortened credential identifiers because masking their full values does not mask prefixes.
 - Add offline tests for confirmation rejection before any HTTP submission.

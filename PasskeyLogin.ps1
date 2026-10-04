@@ -185,6 +185,9 @@ param (
     [Parameter(Mandatory = $false)]
     $AuthUrl = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?response_type=code&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient&scope=https://graph.microsoft.com/.default&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46",
 
+    [switch]$ConfirmApplication,
+    [guid]$ExpectedClientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
+
     [Parameter(Mandatory = $false)]
     $UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0',
 
@@ -985,6 +988,14 @@ if (-not [uri]::IsWellFormedUriString($AuthUrl,[UriKind]::Absolute) -or ([uri]$A
 }
 
 # Check required parameters
+# Application confirmation is not OAuth scope consent. Enable only for the explicitly intended client.
+if ($ConfirmApplication) {
+    $clientParameters = @(([uri]$AuthUrl).Query.TrimStart('?').Split('&') | Where-Object { $_.Split('=',2)[0] -ceq 'client_id' })
+    $requestedClient = [guid]::Empty
+    if ($clientParameters.Count -ne 1 -or -not [guid]::TryParse([uri]::UnescapeDataString($clientParameters[0].Split('=',2)[1]),[ref]$requestedClient) -or $requestedClient -ne $ExpectedClientId) {
+        throw 'Application confirmation requires the expected client in the authorization URL.'
+    }
+}
 $RequiredParams = @("client_id", "response_type", "redirect_uri")
 foreach ($param in $RequiredParams) {
     if (-not $query.Get($param)) {
@@ -1183,6 +1194,21 @@ if (-not ($respFinalize.Content -match '{(.*)}')) {
 $LoopCount = 0
 $authenticationFailed = $false
 $InterruptHandlers = @{
+    "CmsiInterrupt" = @{
+        Message = "Confirming explicitly selected application (not OAuth permission consent)"
+        Uri = "https://login.microsoftonline.com/appverify"
+        Method = "Post"
+        Body = @{
+            ContinueAuth = "true"
+            i19 = { Get-Random -Minimum 1000 -Maximum 9999 }.Invoke()
+            canary = { $Debug.canary }
+            iscsrfspeedbump = "false"
+            flowToken = { $Debug.sFT }
+            hpgrequestid = { $Debug.correlationId }
+            ctx = { $Debug.sCtx }
+        }
+    }
+
     "KmsiInterrupt" = @{
         Message = "Handling KMSI prompt"
         Uri = "https://login.microsoftonline.com/kmsi"
@@ -1205,7 +1231,7 @@ $InterruptHandlers = @{
 }
 
 while ($Debug.pgid -in $InterruptHandlers.Keys -or $Debug.pgid -eq "CmsiInterrupt") {
-    if ($Debug.pgid -eq "CmsiInterrupt") {
+    if ($Debug.pgid -eq "CmsiInterrupt" -and -not $ConfirmApplication) {
         throw "Application confirmation is required. The unattended passkey action will not submit approval."
     }
     if ($CurrentPageId -eq $LastPageId -or ++$LoopCount -gt 10) {

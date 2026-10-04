@@ -1,4 +1,4 @@
-﻿name: "Passkey Login"
+name: "Passkey Login"
 description: "Reusable GitHub Action to obtain an ESTS authentication cookie from an Entra passkey, preferring Azure Key Vault-backed signing and falling back to a local private key."
 author: "nathanmcnulty"
 inputs:
@@ -35,6 +35,14 @@ inputs:
   auth-url:
     description: 'Optional override for the Entra authorize URL.'
     required: false
+  confirm-application:
+    description: 'Explicitly confirm the intended application at CmsiInterrupt; this is not OAuth permission consent.'
+    required: false
+    default: 'false'
+  expected-client-id:
+    description: 'Authorization client ID allowed for explicit application confirmation.'
+    required: false
+    default: '04b07795-8ddb-461a-bbee-02f9e1bf7b46'
   proxy:
     description: 'Optional proxy URL for outbound requests.'
     required: false
@@ -92,6 +100,8 @@ runs:
         KEY_VAULT_CLIENT_SECRET: ${{ inputs.key-vault-client-secret }}
         KEY_VAULT_TENANT_ID: ${{ inputs.key-vault-tenant-id }}
         AUTH_URL: ${{ inputs.auth-url }}
+        CONFIRM_APPLICATION: ${{ inputs.confirm-application }}
+        EXPECTED_CLIENT_ID: ${{ inputs.expected-client-id }}
         PROXY: ${{ inputs.proxy }}
         EXPORT_AUTH_COOKIE: ${{ inputs.export-auth-cookie }}
       run: |
@@ -143,6 +153,11 @@ runs:
           UserHandle = $env:USER_HANDLE
           CredentialId = $env:CREDENTIAL_ID
           PassThru = $true
+        }
+
+        if ($env:CONFIRM_APPLICATION -eq 'true') {
+          $params.ConfirmApplication = $true
+          $params.ExpectedClientId = [guid]$env:EXPECTED_CLIENT_ID
         }
 
         Add-OptionalParameter -Parameters $params -Name AuthUrl -Value $env:AUTH_URL
