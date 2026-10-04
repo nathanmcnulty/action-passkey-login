@@ -319,7 +319,7 @@ function Get-KeyVaultToken {
             Write-Host "    ✓ Acquired Key Vault token via Az PowerShell module" -ForegroundColor Green
             return $token
         } catch {
-            Write-Verbose "Az module token acquisition failed: $($_.Exception.Message)"
+            Write-Verbose "Az module token acquisition failed: Details suppressed."
         }
     }
 
@@ -336,7 +336,7 @@ function Get-KeyVaultToken {
                 return $token
             }
         } catch {
-            Write-Verbose "Azure CLI token acquisition failed: $($_.Exception.Message)"
+            Write-Verbose "Azure CLI token acquisition failed: Details suppressed."
         }
     }
 
@@ -820,7 +820,7 @@ if ($KeyFilePath) {
     try {
         $keyData = Get-Content $KeyFilePath -Raw | ConvertFrom-Json
     } catch {
-        Write-Error "Invalid JSON in key file: $($_.Exception.Message)"
+        Write-Error "Invalid JSON in key file: Details suppressed."
         throw
     }
 }
@@ -830,7 +830,6 @@ $PSDefaultParameterValues = @{}
 $PSDefaultParameterValues.Add('Invoke-WebRequest:Verbose', $false)
 
 if ($Proxy) {
-    Write-Verbose "Setting proxy to $Proxy"
     $PSDefaultParameterValues.Add('Invoke-WebRequest:Proxy', $Proxy)
 }
 
@@ -976,7 +975,7 @@ try {
     $query = [System.Web.HttpUtility]::ParseQueryString($uriBuilder.Query)
 } catch {
     Write-Error "Invalid auth URL format: $AuthUrl"
-    Write-Error "Error: $($_.Exception.Message)"
+    Write-Error "Error: Details suppressed."
     throw
 }
 
@@ -1002,7 +1001,6 @@ if (-not $query.Get("login_hint")) {
     $AuthUrl = "$AuthUrl&login_hint=$targetUser"
 }
 
-Write-Verbose "Auth URL: $AuthUrl"
 
 # Initial request
 Write-Host "`n=== Initiating Authentication Flow ===" -ForegroundColor Cyan
@@ -1059,7 +1057,7 @@ try {
     $credentialsJson = $SessionInformation.oGetCredTypeResult.Credentials.FidoParams.AllowList -join ','
     Write-Host "  ✓ FIDO2 assertion generated successfully" -ForegroundColor Green
 } catch {
-    Write-Error "FIDO Assertion generation failed: $($_.Exception.Message)"
+    Write-Error "FIDO Assertion generation failed: Details suppressed."
     Write-Host "  → Check private key or Key Vault access" -ForegroundColor Yellow
     throw
 }
@@ -1090,19 +1088,17 @@ try {
     
     if ($respVerify.StatusCode -ge 400) {
         Write-Error "Verification request failed with HTTP $($respVerify.StatusCode)"
-        Write-Verbose "Response: $($respVerify.Content)"
         throw "Pre-verification failed"
     }
     
     if (-not ($respVerify.Content -match '{(.*)}')){        Write-Error "Unexpected response format from verification endpoint"
-        Write-Verbose "Response: $($respVerify.Content)"
         throw "Invalid verification response"
     }
     
     $ResponseInformation = $Matches[0] | ConvertFrom-Json
     Write-Host "  ✓ Pre-verification completed" -ForegroundColor Green
 } catch {
-    Write-Error "Verification request failed: $($_.Exception.Message)"
+    Write-Error "Verification request failed: Details suppressed."
     throw
 }
 
@@ -1120,8 +1116,6 @@ $Payload = @{
 }
 
 Write-Host "  Submitting FIDO2 assertion..." -ForegroundColor Gray
-Write-Verbose "Assertion payload: $($fidoPayload | ConvertTo-Json -Compress)"
-Write-Verbose "Login URI: $LoginUri"
 
 $submitParams = @{
     UseBasicParsing = $true
@@ -1138,7 +1132,6 @@ $respFinalize = Invoke-WebRequest @submitParams
 Write-Verbose "Initial response status: $($respFinalize.StatusCode)"
 if ($respFinalize.StatusCode -ge 400) {
     Write-Warning "Assertion submission returned HTTP $($respFinalize.StatusCode)"
-    Write-Verbose "Response content: $($respFinalize.Content)"
 }
 
 # Key Vault signatures may need processing time
@@ -1152,7 +1145,6 @@ $LoginUri = "https://login.microsoftonline.com/common/login?sso_reload=true"
 $Payload.flowToken = $SessionInformation.oGetCredTypeResult.FlowToken
 
 Write-Host "  Submitting with SSO reload..." -ForegroundColor Gray
-Write-Verbose "SSO reload URI: $LoginUri"
 
 $submitParams.Uri = $LoginUri
 $submitParams.Body = $Payload
@@ -1162,7 +1154,6 @@ $respFinalize = Invoke-WebRequest @submitParams
 Write-Verbose "SSO reload response status: $($respFinalize.StatusCode)"
 if ($respFinalize.StatusCode -ge 400) {
     Write-Warning "SSO reload returned HTTP $($respFinalize.StatusCode)"
-    Write-Verbose "Response content: $($respFinalize.Content)"
 }
 
 # Key Vault signatures may need processing time before parsing
@@ -1183,7 +1174,7 @@ if (-not ($respFinalize.Content -match '{(.*)}')) {
             $CurrentPageId = $Debug.pgid
         }
     } catch {
-        Write-Verbose "Failed to parse response JSON: $($_.Exception.Message)"
+        Write-Verbose "Failed to parse response JSON: Details suppressed."
         $Debug = @{ pgid = $null }
     }
 }
@@ -1274,7 +1265,7 @@ while ($Debug.pgid -in $InterruptHandlers.Keys -or $Debug.pgid -eq "CmsiInterrup
         }
     } catch {
         Write-Warning "Failed to parse JSON response. Exiting loop."
-        Write-Verbose "Parse error: $($_.Exception.Message)"
+        Write-Verbose "Parse error: Details suppressed."
         break
     }
 }
@@ -1320,7 +1311,7 @@ if ($estsCookies.Count -eq 0) {
         try {
             Invoke-WebRequest -UseBasicParsing -Uri $AuthUrl -Method Get -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck | Out-Null
         } catch {
-            Write-Verbose "Finalization request failed on attempt ${attempt}: $($_.Exception.Message)"
+            Write-Verbose "Finalization request failed on attempt ${attempt}: Details suppressed."
         }
 
         Start-Sleep -Milliseconds 250

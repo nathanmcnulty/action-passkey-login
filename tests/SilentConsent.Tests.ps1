@@ -14,6 +14,6 @@ Describe 'Unattended login boundaries' {
   Should -Invoke Invoke-WebRequest -Times 0
  }
  It 'has no automatic consent submission or shortened credential output' {
-  $scriptText|Should -Not -Match 'ContinueAuth\s*=|login.microsoftonline.com/appverify|credentialId.Substring|userHandle.Substring'
+  $scriptText|Should -Not -Match 'ContinueAuth\s*=|login.microsoftonline.com/appverify|credentialId.Substring|userHandle.Substring|Write-Verbose.*(?:fidoPayload|respVerify.Content|respFinalize.Content|Exception.Message)'
  }
 }
