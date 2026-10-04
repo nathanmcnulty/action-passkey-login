@@ -38,3 +38,8 @@ Security posture:
 1. Azure Key Vault is the recommended signing path.
 2. Local private key support remains available as a fallback for controlled testing.
 3. The action masks sensitive values and treats the returned cookie as sensitive session material.
+## Unattended application confirmation and output hardening
+
+- Use Azure CLI’s HTTPS native callback by default to avoid its native-scheme application-confirmation prompt. Stop remaining application-confirmation interrupts by default; explicit operator opt-in is bound to the expected authorization client. This confirmation is separate from OAuth permission consent.
+- Omit shortened credential identifiers because masking their full values does not mask prefixes.
+- Add offline tests for confirmation rejection before any HTTP submission.

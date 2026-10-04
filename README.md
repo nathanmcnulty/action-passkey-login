@@ -307,3 +307,7 @@ After running it, store the emitted values as GitHub secrets or variables to mat
 ## Publishing
 
 Tag a release such as `v1.0.0` and publish through the GitHub Marketplace flow in repository settings.
+
+Application-intent confirmation (`CmsiInterrupt`/AADSTS50199) is separate from OAuth permission consent. The action stops at this confirmation by default. For an operator-authorized automation, set `confirm-application: 'true'` and `expected-client-id` to the intended authorization client; the initial URL must contain that client exactly once. This does not approve OAuth scope consent. The default Azure CLI authorization uses its HTTPS native callback. Assertions, identity response bodies, and credential prefixes are omitted from diagnostics.
+
+Microsoft describes this app confirmation in its [AADSTS50199 documentation](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes).

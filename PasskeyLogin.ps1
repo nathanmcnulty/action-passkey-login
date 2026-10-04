@@ -1,4 +1,4 @@
-﻿#Requires -Version 7.0
+#Requires -Version 7.0
 
 <#
 .SYNOPSIS
@@ -183,7 +183,10 @@ param (
     $RelyingParty = "login.microsoft.com",
 
     [Parameter(Mandatory = $false)]
-    $AuthUrl = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?response_type=code&redirect_uri=msauth.com.msauth.unsignedapp://auth&scope=https://graph.microsoft.com/.default&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+    $AuthUrl = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?response_type=code&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient&scope=https://graph.microsoft.com/.default&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+
+    [switch]$ConfirmApplication,
+    [guid]$ExpectedClientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
 
     [Parameter(Mandatory = $false)]
     $UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0',
@@ -319,7 +322,7 @@ function Get-KeyVaultToken {
             Write-Host "    ✓ Acquired Key Vault token via Az PowerShell module" -ForegroundColor Green
             return $token
         } catch {
-            Write-Verbose "Az module token acquisition failed: $($_.Exception.Message)"
+            Write-Verbose "Az module token acquisition failed: Details suppressed."
         }
     }
 
@@ -336,7 +339,7 @@ function Get-KeyVaultToken {
                 return $token
             }
         } catch {
-            Write-Verbose "Azure CLI token acquisition failed: $($_.Exception.Message)"
+            Write-Verbose "Azure CLI token acquisition failed: Details suppressed."
         }
     }
 
@@ -820,7 +823,7 @@ if ($KeyFilePath) {
     try {
         $keyData = Get-Content $KeyFilePath -Raw | ConvertFrom-Json
     } catch {
-        Write-Error "Invalid JSON in key file: $($_.Exception.Message)"
+        Write-Error "Invalid JSON in key file: Details suppressed."
         throw
     }
 }
@@ -830,7 +833,6 @@ $PSDefaultParameterValues = @{}
 $PSDefaultParameterValues.Add('Invoke-WebRequest:Verbose', $false)
 
 if ($Proxy) {
-    Write-Verbose "Setting proxy to $Proxy"
     $PSDefaultParameterValues.Add('Invoke-WebRequest:Proxy', $Proxy)
 }
 
@@ -873,8 +875,6 @@ Write-Host "`n=== Authentication Configuration ===" -ForegroundColor Cyan
 Write-Host "  User:            $targetUser" -ForegroundColor White
 Write-Host "  RP ID:           $rpId" -ForegroundColor White
 Write-Host "  Origin:          $origin" -ForegroundColor White
-Write-Host "  Credential ID:   $($credentialId.Substring(0, [Math]::Min(20, $credentialId.Length)))..." -ForegroundColor White
-Write-Host "  User Handle:     $($userHandle.Substring(0, [Math]::Min(20, $userHandle.Length)))..." -ForegroundColor White
 
 # Check if using Key Vault
 $useKeyVault = $false
@@ -978,16 +978,24 @@ try {
     $query = [System.Web.HttpUtility]::ParseQueryString($uriBuilder.Query)
 } catch {
     Write-Error "Invalid auth URL format: $AuthUrl"
-    Write-Error "Error: $($_.Exception.Message)"
+    Write-Error "Error: Details suppressed."
     throw
 }
 
-if ($AuthUrl -notmatch "^https://login.microsoftonline.com/") {
+if (-not [uri]::IsWellFormedUriString($AuthUrl,[UriKind]::Absolute) -or ([uri]$AuthUrl).Scheme -ne "https" -or ([uri]$AuthUrl).Host -ne "login.microsoftonline.com" -or ([uri]$AuthUrl).Port -ne 443 -or ([uri]$AuthUrl).UserInfo) {
     Write-Error "Auth URL must start with 'https://login.microsoftonline.com/'. Current: $AuthUrl"
     throw "Invalid auth URL"
 }
 
 # Check required parameters
+# Application confirmation is not OAuth scope consent. Enable only for the explicitly intended client.
+if ($ConfirmApplication) {
+    $clientParameters = @(([uri]$AuthUrl).Query.TrimStart('?').Split('&') | Where-Object { $_.Split('=',2)[0] -ceq 'client_id' })
+    $requestedClient = [guid]::Empty
+    if ($clientParameters.Count -ne 1 -or -not [guid]::TryParse([uri]::UnescapeDataString($clientParameters[0].Split('=',2)[1]),[ref]$requestedClient) -or $requestedClient -ne $ExpectedClientId) {
+        throw 'Application confirmation requires the expected client in the authorization URL.'
+    }
+}
 $RequiredParams = @("client_id", "response_type", "redirect_uri")
 foreach ($param in $RequiredParams) {
     if (-not $query.Get($param)) {
@@ -1004,7 +1012,6 @@ if (-not $query.Get("login_hint")) {
     $AuthUrl = "$AuthUrl&login_hint=$targetUser"
 }
 
-Write-Verbose "Auth URL: $AuthUrl"
 
 # Initial request
 Write-Host "`n=== Initiating Authentication Flow ===" -ForegroundColor Cyan
@@ -1061,7 +1068,7 @@ try {
     $credentialsJson = $SessionInformation.oGetCredTypeResult.Credentials.FidoParams.AllowList -join ','
     Write-Host "  ✓ FIDO2 assertion generated successfully" -ForegroundColor Green
 } catch {
-    Write-Error "FIDO Assertion generation failed: $($_.Exception.Message)"
+    Write-Error "FIDO Assertion generation failed: Details suppressed."
     Write-Host "  → Check private key or Key Vault access" -ForegroundColor Yellow
     throw
 }
@@ -1092,19 +1099,17 @@ try {
     
     if ($respVerify.StatusCode -ge 400) {
         Write-Error "Verification request failed with HTTP $($respVerify.StatusCode)"
-        Write-Verbose "Response: $($respVerify.Content)"
         throw "Pre-verification failed"
     }
     
     if (-not ($respVerify.Content -match '{(.*)}')){        Write-Error "Unexpected response format from verification endpoint"
-        Write-Verbose "Response: $($respVerify.Content)"
         throw "Invalid verification response"
     }
     
     $ResponseInformation = $Matches[0] | ConvertFrom-Json
     Write-Host "  ✓ Pre-verification completed" -ForegroundColor Green
 } catch {
-    Write-Error "Verification request failed: $($_.Exception.Message)"
+    Write-Error "Verification request failed: Details suppressed."
     throw
 }
 
@@ -1122,8 +1127,6 @@ $Payload = @{
 }
 
 Write-Host "  Submitting FIDO2 assertion..." -ForegroundColor Gray
-Write-Verbose "Assertion payload: $($fidoPayload | ConvertTo-Json -Compress)"
-Write-Verbose "Login URI: $LoginUri"
 
 $submitParams = @{
     UseBasicParsing = $true
@@ -1140,7 +1143,6 @@ $respFinalize = Invoke-WebRequest @submitParams
 Write-Verbose "Initial response status: $($respFinalize.StatusCode)"
 if ($respFinalize.StatusCode -ge 400) {
     Write-Warning "Assertion submission returned HTTP $($respFinalize.StatusCode)"
-    Write-Verbose "Response content: $($respFinalize.Content)"
 }
 
 # Key Vault signatures may need processing time
@@ -1154,7 +1156,6 @@ $LoginUri = "https://login.microsoftonline.com/common/login?sso_reload=true"
 $Payload.flowToken = $SessionInformation.oGetCredTypeResult.FlowToken
 
 Write-Host "  Submitting with SSO reload..." -ForegroundColor Gray
-Write-Verbose "SSO reload URI: $LoginUri"
 
 $submitParams.Uri = $LoginUri
 $submitParams.Body = $Payload
@@ -1164,7 +1165,6 @@ $respFinalize = Invoke-WebRequest @submitParams
 Write-Verbose "SSO reload response status: $($respFinalize.StatusCode)"
 if ($respFinalize.StatusCode -ge 400) {
     Write-Warning "SSO reload returned HTTP $($respFinalize.StatusCode)"
-    Write-Verbose "Response content: $($respFinalize.Content)"
 }
 
 # Key Vault signatures may need processing time before parsing
@@ -1185,7 +1185,7 @@ if (-not ($respFinalize.Content -match '{(.*)}')) {
             $CurrentPageId = $Debug.pgid
         }
     } catch {
-        Write-Verbose "Failed to parse response JSON: $($_.Exception.Message)"
+        Write-Verbose "Failed to parse response JSON: Details suppressed."
         $Debug = @{ pgid = $null }
     }
 }
@@ -1195,7 +1195,7 @@ $LoopCount = 0
 $authenticationFailed = $false
 $InterruptHandlers = @{
     "CmsiInterrupt" = @{
-        Message = "Handling consent prompt"
+        Message = "Confirming explicitly selected application (not OAuth permission consent)"
         Uri = "https://login.microsoftonline.com/appverify"
         Method = "Post"
         Body = @{
@@ -1208,6 +1208,7 @@ $InterruptHandlers = @{
             ctx = { $Debug.sCtx }
         }
     }
+
     "KmsiInterrupt" = @{
         Message = "Handling KMSI prompt"
         Uri = "https://login.microsoftonline.com/kmsi"
@@ -1229,7 +1230,10 @@ $InterruptHandlers = @{
     }
 }
 
-while ($Debug.pgid -in $InterruptHandlers.Keys) {
+while ($Debug.pgid -in $InterruptHandlers.Keys -or $Debug.pgid -eq "CmsiInterrupt") {
+    if ($Debug.pgid -eq "CmsiInterrupt" -and -not $ConfirmApplication) {
+        throw "Application confirmation is required. The unattended passkey action will not submit approval."
+    }
     if ($CurrentPageId -eq $LastPageId -or ++$LoopCount -gt 10) {
         $authenticationFailed = $true
         Write-Error "$(if ($CurrentPageId -eq $LastPageId) { 'Stuck in' } else { 'Exceeded maximum' }) interrupt loop. Authentication failed."
@@ -1287,7 +1291,7 @@ while ($Debug.pgid -in $InterruptHandlers.Keys) {
         }
     } catch {
         Write-Warning "Failed to parse JSON response. Exiting loop."
-        Write-Verbose "Parse error: $($_.Exception.Message)"
+        Write-Verbose "Parse error: Details suppressed."
         break
     }
 }
@@ -1333,7 +1337,7 @@ if ($estsCookies.Count -eq 0) {
         try {
             Invoke-WebRequest -UseBasicParsing -Uri $AuthUrl -Method Get -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck | Out-Null
         } catch {
-            Write-Verbose "Finalization request failed on attempt ${attempt}: $($_.Exception.Message)"
+            Write-Verbose "Finalization request failed on attempt ${attempt}: Details suppressed."
         }
 
         Start-Sleep -Milliseconds 250
