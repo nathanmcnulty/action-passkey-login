@@ -1,5 +1,7 @@
 ﻿# Passkey Login Action
 
+> Maintained source: [research-passkeys/github/action-passkey-login](https://github.com/nathanmcnulty/research-passkeys/tree/main/github/action-passkey-login). The standalone action repository is the distribution mirror. Propose source changes in research, then use its reviewed offline sync. This remains a legacy experimental software-signing action; it does not establish authenticator-bound presence or verification.
+
 Reusable GitHub Action for Entra passkey authentication whose primary purpose is to return an ESTS cookie for downstream tools. The safest supported design is to keep the passkey signing key in Azure Key Vault, authenticate the workflow to Azure with `azure/login`, and let this action return the cookie as a masked output.
 
 ## Repository layout
