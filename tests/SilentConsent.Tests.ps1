@@ -28,3 +28,16 @@ Describe 'Unattended login boundaries' {
  }
 
 }
+Describe 'Application confirmation query ambiguity' {
+ It 'rejects duplicate decoded client keys: <Extra>' -ForEach @(
+  @{Extra='client_id=11111111-1111-1111-1111-111111111111'},
+  @{Extra='client%5Fid=11111111-1111-1111-1111-111111111111'},
+  @{Extra='CLIENT_ID=11111111-1111-1111-1111-111111111111'},
+  @{Extra='client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46'}
+ ) {
+  $guard=$ast.Find({param($node)$node -is [Management.Automation.Language.IfStatementAst] -and $node.Extent.Text -match '^if \(\$ConfirmApplication\)'},$true)
+  $ConfirmApplication=$true;$ExpectedClientId=[guid]'04b07795-8ddb-461a-bbee-02f9e1bf7b46'
+  $AuthUrl='https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46&'+$Extra
+  {& ([scriptblock]::Create($guard.Extent.Text))}|Should -Throw '*expected client*'
+ }
+}
