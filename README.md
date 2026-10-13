@@ -1,5 +1,7 @@
 ﻿# Passkey Login Action
 
+> Maintained source: [research-passkeys/github/action-passkey-login](https://github.com/nathanmcnulty/research-passkeys/tree/main/github/action-passkey-login). The standalone action repository is the distribution mirror. Propose source changes in research, then copy its reviewed built artifacts. This remains a legacy experimental software-signing action; it does not establish authenticator-bound presence or verification.
+
 Reusable GitHub Action for Entra passkey authentication whose primary purpose is to return an ESTS cookie for downstream tools. The safest supported design is to keep the passkey signing key in Azure Key Vault, authenticate the workflow to Azure with `azure/login`, and let this action return the cookie as a masked output.
 
 ## Repository layout
@@ -115,6 +117,10 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
 jobs:
   passkey-login:
     runs-on: windows-latest
@@ -122,6 +128,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Verify installed PowerShell 7.6
+        shell: pwsh
+        run: |
+          Write-Host "Installed PowerShell: $($PSVersionTable.PSVersion) ($([Environment]::ProcessPath))"
+          if ($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSVersion.Minor -ne 6) {
+            throw "Expected installed PowerShell 7.6, got $($PSVersionTable.PSVersion)."
+          }
+          if ([Microsoft.PowerShell.Telemetry.ApplicationInsightsTelemetry]::CanSendTelemetry) {
+            throw 'Telemetry must be disabled before PowerShell starts.'
+          }
 
       - name: Azure login via OIDC
         uses: azure/login@v3
@@ -199,7 +216,7 @@ Example using the cookie with a downstream PowerShell flow. This action is desig
 
 Do not print the cookie. Do not promote it to an artifact. Keep its use scoped to the smallest possible set of steps.
 
-For a full repository-hosted validation flow, use [test-xdr-key-vault.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-xdr-key-vault.yml). It signs in with the action, asserts that the returned cookie is `ESTSAUTH`, and then validates that the cookie can bootstrap a session to `security.microsoft.com`.
+For a full repository-hosted validation flow, use [test-xdr-key-vault.yml](.github/workflows/test-xdr-key-vault.yml). It signs in with the action, asserts that the returned cookie is `ESTSAUTH`, and then validates that the cookie can bootstrap a session to `security.microsoft.com`.
 
 ## Local key mode
 
@@ -236,7 +253,7 @@ You can test this action in the same private repository by using a local path re
 
 That is the simplest way to validate the action before making the repository public. Once you want other repositories to consume it, publish a tag such as `v1` and reference `owner/action-passkey-login@v1`.
 
-For Key Vault-backed testing in this same repository, use the included workflow [test-key-vault.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-key-vault.yml) and configure these repository secrets first:
+For Key Vault-backed testing in this same repository, use the included workflow [test-key-vault.yml](.github/workflows/test-key-vault.yml) and configure these repository secrets first:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
@@ -248,7 +265,7 @@ For Key Vault-backed testing in this same repository, use the included workflow 
 
 The workflow signs into Azure with `azure/login`, invokes the local action with Key Vault inputs, and verifies that the action reports `Azure Key Vault` as the signature method.
 
-For local private-key testing in this same repository, use [test-private-key.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-private-key.yml) and configure a separate private-key passkey registration with these repository secrets:
+For local private-key testing in this same repository, use [test-private-key.yml](.github/workflows/test-private-key.yml) and configure a separate private-key passkey registration with these repository secrets:
 
 - `PASSKEY_PRIVATE_CREDENTIAL_ID`
 - `PASSKEY_PRIVATE_USER_HANDLE`
@@ -261,8 +278,8 @@ Do not point the private-key workflow at the Key Vault-backed registration value
 
 For local testing outside GitHub Actions, create your own passkey JSON file and keep it out of source control. The repository includes sanitized examples for the expected shape:
 
-- [examples/passkey.private-key.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/examples/passkey.private-key.example.json)
-- [examples/passkey.keyvault.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/examples/passkey.keyvault.example.json)
+- [examples/passkey.private-key.example.json](examples/passkey.private-key.example.json)
+- [examples/passkey.keyvault.example.json](examples/passkey.keyvault.example.json)
 
 Example:
 
@@ -274,14 +291,14 @@ The script no longer writes token previews to the console. It only includes the 
 
 ## Notes
 
-- The action bundles `PasskeyLogin.ps1` and runs it with PowerShell 7.
+- The action bundles `PasskeyLogin.ps1` and requires PowerShell 7.6. Hosted and self-hosted runners must have it installed before invoking the action; preflight fails clearly on an older runtime. This action does not install or download its implementation at runtime.
 - The action masks sensitive inputs before invoking the script.
 - `azure/login` should run before this action when using Key Vault-backed signing.
 - If you grant Key Vault data-plane access, use a role or permission set that allows signing but no broader secret access than necessary.
 
 ## Minimal OIDC Setup
 
-The repository includes [scripts/Setup-GitHubActionServicePrincipal.ps1](c:/Users/nathanmcnulty/GitHub/action-passkey-login/scripts/Setup-GitHubActionServicePrincipal.ps1), a minimal helper that:
+The repository includes [scripts/Setup-GitHubActionServicePrincipal.ps1](scripts/Setup-GitHubActionServicePrincipal.ps1), a minimal helper that:
 
 - creates or reuses an Entra app registration
 - creates or reuses its service principal
@@ -307,3 +324,7 @@ After running it, store the emitted values as GitHub secrets or variables to mat
 ## Publishing
 
 Tag a release such as `v1.0.0` and publish through the GitHub Marketplace flow in repository settings.
+
+Application-intent confirmation (`CmsiInterrupt`/AADSTS50199) is separate from OAuth permission consent. The action stops at this confirmation by default. For an operator-authorized automation, set `confirm-application: 'true'` and `expected-client-id` to the intended authorization client; the initial URL must contain that client exactly once. This does not approve OAuth scope consent. The default Azure CLI authorization uses its HTTPS native callback. Assertions, identity response bodies, and credential prefixes are omitted from diagnostics.
+
+Microsoft describes this app confirmation in its [AADSTS50199 documentation](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes).

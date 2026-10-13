@@ -1,5 +1,22 @@
 ﻿# Changelog
 
+## Upcoming: shared source package 0.1.0
+
+The login script is generated from the reviewed `research-passkeys` source units,
+which also build a module and standalone registration tools. Source package version
+0.1.0 is independent of the historical Action release versions below; no release tags
+are changed. Named Action inputs/output masking remain compatible. PowerShell 7.6
+is required. Offline CI uses the hosted runner's installed PowerShell, validates major
+7/minor 6 without a patch pin or runtime download, and installs Pester 6.2.0.
+
+Legacy local/software and Key Vault assertion support remains experimental. Software
+login emits one shared limitations warning per invocation, without session suppression.
+Genuine authentication failure diagnostics retain warning severity.
+The canonical registration commands use that warning instead of attestation-acceptance switches;
+packed/none formats and existing wire behavior remain unchanged. Software
+UP/UV claims are not trusted authenticator evidence. Pending consent/policy states
+cannot be mistaken for completed authentication merely because an ESTS cookie exists.
+
 ## v1.1.0 - 2026-03-21
 
 Improves private-key workflow isolation and release readiness after the first public release.
@@ -38,3 +55,8 @@ Security posture:
 1. Azure Key Vault is the recommended signing path.
 2. Local private key support remains available as a fallback for controlled testing.
 3. The action masks sensitive values and treats the returned cookie as sensitive session material.
+## Unattended application confirmation and output hardening
+
+- Use Azure CLI’s HTTPS native callback by default to avoid its native-scheme application-confirmation prompt. Stop remaining application-confirmation interrupts by default; explicit operator opt-in is bound to the expected authorization client. This confirmation is separate from OAuth permission consent.
+- Omit shortened credential identifiers because masking their full values does not mask prefixes.
+- Add offline tests for confirmation rejection before any HTTP submission.
