@@ -1,5 +1,35 @@
 ﻿# Changelog
 
+## Source package 0.3.1
+
+- Refuse ambiguous application display-name matches before selecting or modifying Entra trust.
+- Report XDR portal bootstrap separately from authentication; require one successful form-exchange response, and never infer authenticated access from arbitrary cookies.
+- Add credential-free regression coverage and document a proposed, unimplemented protected live-validation path.
+
+
+## Upcoming: shared source package 0.2.0
+
+The login script is generated from the reviewed `research-passkeys` source units,
+which also build a module and standalone registration tools. Source package version
+0.2.0 is independent of the historical Action release versions below; no release tags
+are changed. Named Action inputs/output masking remain compatible. PowerShell 7.6
+is required. Offline CI uses the hosted runner's installed PowerShell, validates major
+7/minor 6 without a patch pin or runtime download, and installs Pester 6.2.0.
+
+Legacy local/software and Key Vault assertion support remains experimental. Software
+login emits one shared limitations warning per invocation, without session suppression.
+Genuine authentication failure diagnostics retain warning severity.
+The canonical registration commands use that warning instead of attestation-acceptance switches;
+packed/none formats and existing wire behavior remain unchanged. Software
+UP/UV claims are not trusted authenticator evidence. Pending consent/policy states
+cannot be mistaken for completed authentication merely because an ESTS cookie exists.
+
+Native software enrollment now durably saves its private recovery credential before
+credential submission and retains it for reconciliation after uncertain or partial failure.
+The separate `Register-GitHubPasskeyViaTAP` adapter has one breaking API change: callers
+must provide `RecoveryOutputPath`. This parameter does not change the GitHub Action's
+inputs or the login-only `PasskeyLogin.ps1` interface.
+
 ## v1.1.0 - 2026-03-21
 
 Improves private-key workflow isolation and release readiness after the first public release.
@@ -38,3 +68,8 @@ Security posture:
 1. Azure Key Vault is the recommended signing path.
 2. Local private key support remains available as a fallback for controlled testing.
 3. The action masks sensitive values and treats the returned cookie as sensitive session material.
+## Unattended application confirmation and output hardening
+
+- Use Azure CLI’s HTTPS native callback by default to avoid its native-scheme application-confirmation prompt. Stop remaining application-confirmation interrupts by default; explicit operator opt-in is bound to the expected authorization client. This confirmation is separate from OAuth permission consent.
+- Omit shortened credential identifiers because masking their full values does not mask prefixes.
+- Add offline tests for confirmation rejection before any HTTP submission.
