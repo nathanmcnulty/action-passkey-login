@@ -1,5 +1,7 @@
 ﻿# Passkey Login Action
 
+> Maintained source: [research-passkeys/github/action-passkey-login](https://github.com/nathanmcnulty/research-passkeys/tree/main/github/action-passkey-login). The standalone action repository is the distribution mirror. Propose source changes in research, then copy its reviewed built artifacts. This remains a legacy experimental software-signing action; it does not establish authenticator-bound presence or verification.
+
 Reusable GitHub Action for Entra passkey authentication whose primary purpose is to return an ESTS cookie for downstream tools. The safest supported design is to keep the passkey signing key in Azure Key Vault, authenticate the workflow to Azure with `azure/login`, and let this action return the cookie as a masked output.
 
 ## Repository layout
@@ -103,7 +105,7 @@ Optional behavior:
 
 ## Recommended workflow
 
-This is the default model the action is designed for.
+This is the default model the action is designed for. Configure the OIDC trust for the consuming repository and the `entra-prod` environment using [Minimal OIDC setup](#minimal-oidc-setup). Protect that environment with appropriate reviewers and deployment branch restrictions; do not remove it to make a branch-only trust work.
 
 ```yaml
 name: Passkey Login
@@ -115,6 +117,10 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
 jobs:
   passkey-login:
     runs-on: windows-latest
@@ -122,6 +128,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Verify installed PowerShell 7.6
+        shell: pwsh
+        run: |
+          Write-Host "Installed PowerShell: $($PSVersionTable.PSVersion) ($([Environment]::ProcessPath))"
+          if ($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSVersion.Minor -ne 6) {
+            throw "Expected installed PowerShell 7.6, got $($PSVersionTable.PSVersion)."
+          }
+          if ([Microsoft.PowerShell.Telemetry.ApplicationInsightsTelemetry]::CanSendTelemetry) {
+            throw 'Telemetry must be disabled before PowerShell starts.'
+          }
 
       - name: Azure login via OIDC
         uses: azure/login@v3
@@ -199,7 +216,7 @@ Example using the cookie with a downstream PowerShell flow. This action is desig
 
 Do not print the cookie. Do not promote it to an artifact. Keep its use scoped to the smallest possible set of steps.
 
-For a full repository-hosted validation flow, use [test-xdr-key-vault.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-xdr-key-vault.yml). It signs in with the action, asserts that the returned cookie is `ESTSAUTH`, and then validates that the cookie can bootstrap a session to `security.microsoft.com`.
+For a repository-hosted login and portal-bootstrap exercise, use [test-xdr-key-vault.yml](.github/workflows/test-xdr-key-vault.yml). It signs in with the action, asserts that the returned cookie is `ESTSAUTH`, and exercises the portal form exchange at `security.microsoft.com`. Portal cookies, including anonymous tracking cookies, do not prove authenticated XDR access. The helper returns `BootstrapCompleted = true`, `ValidationScope = PortalBootstrapOnly`, and `AuthenticationVerified = false`; its legacy `Success` field remains false. A green run proves only these bounded checks, not an authenticated XDR readback or a specific tenant identity. Do not use it as an XDR authentication-validation badge.
 
 ## Local key mode
 
@@ -236,7 +253,7 @@ You can test this action in the same private repository by using a local path re
 
 That is the simplest way to validate the action before making the repository public. Once you want other repositories to consume it, publish a tag such as `v1` and reference `owner/action-passkey-login@v1`.
 
-For Key Vault-backed testing in this same repository, use the included workflow [test-key-vault.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-key-vault.yml) and configure these repository secrets first:
+For Key Vault-backed testing in this same repository, use the included workflow [test-key-vault.yml](.github/workflows/test-key-vault.yml) and configure these repository secrets first:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
@@ -248,7 +265,7 @@ For Key Vault-backed testing in this same repository, use the included workflow 
 
 The workflow signs into Azure with `azure/login`, invokes the local action with Key Vault inputs, and verifies that the action reports `Azure Key Vault` as the signature method.
 
-For local private-key testing in this same repository, use [test-private-key.yml](c:/Users/nathanmcnulty/GitHub/action-passkey-login/.github/workflows/test-private-key.yml) and configure a separate private-key passkey registration with these repository secrets:
+For local private-key testing in this same repository, use [test-private-key.yml](.github/workflows/test-private-key.yml) and configure a separate private-key passkey registration with these repository secrets:
 
 - `PASSKEY_PRIVATE_CREDENTIAL_ID`
 - `PASSKEY_PRIVATE_USER_HANDLE`
@@ -261,8 +278,8 @@ Do not point the private-key workflow at the Key Vault-backed registration value
 
 For local testing outside GitHub Actions, create your own passkey JSON file and keep it out of source control. The repository includes sanitized examples for the expected shape:
 
-- [examples/passkey.private-key.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/examples/passkey.private-key.example.json)
-- [examples/passkey.keyvault.example.json](c:/Users/nathanmcnulty/GitHub/action-passkey-login/examples/passkey.keyvault.example.json)
+- [examples/passkey.private-key.example.json](examples/passkey.private-key.example.json)
+- [examples/passkey.keyvault.example.json](examples/passkey.keyvault.example.json)
 
 Example:
 
@@ -274,36 +291,88 @@ The script no longer writes token previews to the console. It only includes the 
 
 ## Notes
 
-- The action bundles `PasskeyLogin.ps1` and runs it with PowerShell 7.
+- The action bundles `PasskeyLogin.ps1` and requires PowerShell 7.6 or later. Hosted and self-hosted runners must have it installed before invoking the action; preflight fails clearly on an older runtime. This action does not install or download its implementation at runtime. Offline CI and the live-validation examples deliberately select PowerShell 7.6; numeric minimum-version acceptance is not evidence that later runtimes have been validated.
 - The action masks sensitive inputs before invoking the script.
 - `azure/login` should run before this action when using Key Vault-backed signing.
 - If you grant Key Vault data-plane access, use a role or permission set that allows signing but no broader secret access than necessary.
 
-## Minimal OIDC Setup
+## Minimal OIDC setup
 
-The repository includes [scripts/Setup-GitHubActionServicePrincipal.ps1](c:/Users/nathanmcnulty/GitHub/action-passkey-login/scripts/Setup-GitHubActionServicePrincipal.ps1), a minimal helper that:
+The repository includes [scripts/Setup-GitHubActionServicePrincipal.ps1](scripts/Setup-GitHubActionServicePrincipal.ps1), a helper that:
 
-- creates or reuses an Entra app registration
-- creates or reuses its service principal
-- creates one GitHub Actions federated credential for a branch
+- creates or reuses an Entra app registration and its service principal
+- creates or reuses one GitHub Actions federated credential with matching subject, issuer, and audience
 - optionally grants `Key Vault Crypto User` on a specified Key Vault
 
-It does not assign API permissions or create secrets. That keeps the setup small and aligned with this action's use of `azure/login` plus Key Vault signing.
+It does not assign API permissions or create secrets. Run it with PowerShell 7.6 and an Azure CLI session in the intended tenant. Running it can create Azure resources and grant Key Vault access, so verify the target tenant, application, repository, and subject first.
 
-Example:
+`-GitHubRepo` is required and must identify **your consuming workflow repository**, not this sample or the action's publisher. Omitting it fails before any Azure CLI call. `-AppName` defaults to `action-passkey-login`; choose a distinct name if workflows should not share an application and its permissions.
+
+### Match the job's actual subject
+
+For the recommended workflow above, use `-Environment 'entra-prod'`, not a branch subject. A job that references a GitHub environment has an environment subject even when it runs from `main`. Entra requires an exact, case-sensitive match. Environment protection rules, not a branch suffix in the subject, control which branches can use that environment.
+
+Check the consuming repository's Actions OIDC settings and the expected job `sub` before provisioning. GitHub supports both name-only subjects and [immutable subjects containing owner and repository IDs](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims). Newly created, renamed, or transferred repositories may use the immutable format. The helper does not query GitHub or infer the format from a repository name.
+
+For a repository verified to use the name-only format, replace `<your-owner>/<your-workflow-repo>` and run:
 
 ```powershell
-./scripts/Setup-GitHubActionServicePrincipal.ps1
+./scripts/Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo '<your-owner>/<your-workflow-repo>' -Environment 'entra-prod'
 ```
 
-To create the OIDC objects and grant the Key Vault role in one step:
+To also grant the Key Vault role:
 
 ```powershell
-./scripts/Setup-GitHubActionServicePrincipal.ps1 -KeyVaultName '<your-key-vault-name>'
+./scripts/Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo '<your-owner>/<your-workflow-repo>' -Environment 'entra-prod' -KeyVaultName '<your-key-vault-name>'
 ```
 
-After running it, store the emitted values as GitHub secrets or variables to match your workflow style. If you did not pass `-KeyVaultName`, grant the service principal `Key Vault Crypto User` on the target Key Vault or key separately.
+For the immutable format, supply both verified numeric IDs. These illustrative IDs must be replaced with your repository's actual values:
+
+```powershell
+./scripts/Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo 'contoso/automation' -GitHubOwnerId '123456' -GitHubRepositoryId '456789' -Environment 'entra-prod'
+# Expected subject: repo:contoso@123456/automation@456789:environment:entra-prod
+```
+
+Alternatively, pass the exact verified subject, including any customized job context. The helper accepts a subject beginning with the specified repository's `repo:` segment, with both immutable IDs or neither; it rejects subjects for another repository. It preserves the supplied subject exactly and does not independently attest its IDs or GitHub configuration:
+
+```powershell
+./scripts/Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo 'contoso/automation' -OidcSubject 'repo:contoso@123456/automation@456789:environment:entra-prod'
+```
+
+`-Branch`, `-Environment`, and `-OidcSubject` are mutually exclusive. The default `-Branch 'main'` is only for a non-pull-request job that has no environment, with a verified name-only subject unless both immutable IDs are supplied. For example:
+
+```powershell
+./scripts/Setup-GitHubActionServicePrincipal.ps1 -GitHubRepo '<your-owner>/<your-workflow-repo>' -Branch 'main'
+```
+
+When constructing an environment or branch subject, the helper encodes metadata colons as `%3A`, as specified by [GitHub's subject-claim reference](https://docs.github.com/en/actions/reference/security/oidc#example-subject-claims). An explicit `-OidcSubject` must already contain the exact encoding. Subjects customized without a leading repository segment require separate, carefully scoped provisioning rather than this helper.
+
+### Safe reruns
+
+The credential name is a fixed-length SHA-256 digest of the exact subject, issuer, and audience, so different repositories and contexts do not collide through shortened names or slash replacement. Existing credentials are reused only when all three trust properties match exactly. An incompatible credential with the same generated name or subject stops setup before a Key Vault role grant. The helper never deletes or replaces credentials; review conflicts manually. It also leaves unrelated and older name-based credentials unchanged, so review obsolete trust separately when migrating.
+
+The fixed issuer is `https://token.actions.githubusercontent.com` and the sole audience is `api://AzureADTokenExchange`, matching this workflow's Azure login. See [Entra's federated credential requirements](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust) for exact matching and service limits.
+
+After running the helper, store the emitted client and tenant IDs as GitHub secrets or variables to match your workflow. If you did not pass `-KeyVaultName`, grant the service principal `Key Vault Crypto User` on the target Key Vault or key separately. A successful setup does not verify a live token exchange or passkey login.
+
+The OIDC setup helper refuses ambiguous application display-name matches before selecting a service principal or changing trust. Choose a unique `AppName`; it never selects the first of several matching registrations.
 
 ## Publishing
 
 Tag a release such as `v1.0.0` and publish through the GitHub Marketplace flow in repository settings.
+
+Application-intent confirmation (`CmsiInterrupt`) stops the action by default. An explicitly authorized operator may set `confirm-application: 'true'` and `expected-client-id` to the intended authorization client; the initial URL must contain that client exactly once. This permits at most one application-confirmation POST per login invocation, and only with nonempty string continuation fields from the Microsoft page. Repeated confirmation, missing or malformed state, and subsequent OAuth consent or policy interactions fail closed. The initial client check does not independently verify the app displayed on the interruption page. The continuation can create or extend a sign-in session; its server-side persistence is not established by this implementation. It does not implement an OAuth permission-consent handler, and is not a guarantee that the flow needs no consent. The default Azure CLI authorization uses its HTTPS native callback. Assertions, identity response bodies, and credential prefixes are omitted from diagnostics.
+
+Microsoft describes this app confirmation in its [AADSTS50199 documentation](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes).
+
+## Proposed live validation
+
+The [protected lab controller](docs/LAB-COOKIE-CONTROLLER.md) prepares a manual,
+exact-revision cookie-output and server-backed session-reuse integration test.
+It requires a separately reviewed public-client compatibility configuration with identity-only
+permissions. Source and offline tests are not evidence of a passing live run.
+Setup, controller bootstrap, hosted CI, merges and one bounded dispatch require
+appropriate approval. Same-runner results are not hostile-candidate attestation.
+
+The [live validation plan](docs/LIVE-VALIDATION-PLAN.md) describes the remaining
+publication/setup/run sequence. No XDR access is established by this lane.
